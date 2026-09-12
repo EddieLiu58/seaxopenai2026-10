@@ -1,0 +1,2496 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Seax 工作流程與組織記憶 API",
+    "version": "0.1.0",
+    "description": "JSON 純文字需求、workflow DAG、UNKNOWN 歸屬、單人結案及非同步回饋。字串長度按 Unicode code point；必填文字不得只有空白。所有 POST 須 Idempotency-Key。錯誤代碼與執行規則見 backend/spec.md。"
+  },
+  "servers": [
+    {
+      "url": "/api/v1"
+    }
+  ],
+  "paths": {
+    "/global-memory": {
+      "post": {
+        "summary": "初始化全系統共用的組織架構與部門職能",
+        "operationId": "postGlobalMemory_global-memory",
+        "tags": [
+          "global-memory"
+        ],
+        "responses": {
+          "201": {
+            "description": "初始化全系統共用的組織架構與部門職能",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GlobalMemory"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "參數或 JSON 不合法",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "資源不存在",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "狀態、版本、相依或冪等衝突",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "JSON body 超過 10 MiB",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "未預期錯誤",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "description": "永久冪等 key；相同路徑/key/body 回放原成功回應，不同 body 回傳 409。"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InitializeMemory"
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "summary": "查詢最新或指定版本的組織表",
+        "operationId": "getGlobalMemory_global-memory",
+        "tags": [
+          "global-memory"
+        ],
+        "responses": {
+          "200": {
+            "description": "查詢最新或指定版本的組織表",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GlobalMemory"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "參數或 JSON 不合法",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "資源不存在",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "狀態、版本、相依或冪等衝突",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "JSON body 超過 10 MiB",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "未預期錯誤",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "version",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "required": false
+          }
+        ]
+      }
+    },
+    "/projects": {
+      "post": {
+        "summary": "建立專案、提交需求並啟動首次 AI 分析",
+        "operationId": "postCreateProjectResult_projects",
+        "tags": [
+          "projects"
+        ],
+        "responses": {
+          "202": {
+            "description": "建立專案、提交需求並啟動首次 AI 分析",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateProjectResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "參數或 JSON 不合法",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "資源不存在",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "狀態、版本、相依或冪等衝突",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "JSON body 超過 10 MiB",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "未預期錯誤",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "description": "永久冪等 key；相同路徑/key/body 回放原成功回應，不同 body 回傳 409。"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateProject"
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "summary": "查詢專案列表",
+        "operationId": "getProjectPage_projects",
+        "tags": [
+          "projects"
+        ],
+        "responses": {
+          "200": {
+            "description": "查詢專案列表",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "參數或 JSON 不合法",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "資源不存在",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "狀態、版本、相依或冪等衝突",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "JSON body 超過 10 MiB",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "未預期錯誤",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50
+            },
+            "required": false
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0
+            },
+            "required": false
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "OPEN",
+                "CLOSED"
+              ]
+            },
+            "required": false
+          }
+        ]
+      }
+    },
+    "/projects/{projectId}": {
+      "get": {
+        "summary": "查詢專案詳情、需求內容與任務關聯",
+        "operationId": "getProjectDetails_projects_projectId",
+        "tags": [
+          "projects"
+        ],
+        "responses": {
+          "200": {
+            "description": "查詢專案詳情、需求內容與任務關聯",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectDetails"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "參數或 JSON 不合法",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "資源不存在",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "狀態、版本、相依或冪等衝突",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "JSON body 超過 10 MiB",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "未預期錯誤",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true
+          }
+        ]
+      }
+    },
+    "/projects/{projectId}/report": {
+      "get": {
+        "summary": "查詢報告、工作相依順序及歸屬結果",
+        "operationId": "getReport_projects_projectId_report",
+        "tags": [
+          "projects"
+        ],
+        "responses": {
+          "200": {
+            "description": "查詢報告、工作相依順序及歸屬結果",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Report"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "參數或 JSON 不合法",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "資源不存在",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "狀態、版本、相依或冪等衝突",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "JSON body 超過 10 MiB",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "未預期錯誤",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true
+          }
+        ],
+        "description": "以 DAG 拓撲排序回傳工作；每一步候選工作依 createdAt、id 升冪。相依 ID 陣列按 UUID 升冪。"
+      }
+    },
+    "/projects/{projectId}/workflows": {
+      "post": {
+        "summary": "在指定專案中手動新增工作任務及前置相依",
+        "operationId": "postWorkflowResult_projects_projectId_workflows",
+        "tags": [
+          "projects"
+        ],
+        "responses": {
+          "201": {
+            "description": "在指定專案中手動新增工作任務及前置相依",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "參數或 JSON 不合法",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "資源不存在",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "狀態、版本、相依或冪等衝突",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "JSON body 超過 10 MiB",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "未預期錯誤",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "description": "永久冪等 key；相同路徑/key/body 回放原成功回應，不同 body 回傳 409。"
+          }
+        ],
+        "description": "省略歸屬欄位時新增為 UNASSIGNED、修改時保留；只傳 departmentId 則有效 UUID 為 ASSIGNED、null 為 UNASSIGNED。明確 ASSIGNED 須提供 departmentId；UNKNOWN/UNASSIGNED 的 departmentId 須省略或 null。手動判定來源由後端設為 USER。相依須同 Report、無重複、自我或循環。",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateWorkflow"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/workflows/{workflowId}": {
+      "patch": {
+        "summary": "修改工作任務內容、前置相依或部門歸屬",
+        "operationId": "patchWorkflowResult_workflows_workflowId",
+        "tags": [
+          "workflows"
+        ],
+        "responses": {
+          "200": {
+            "description": "修改工作任務內容、前置相依或部門歸屬",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "參數或 JSON 不合法",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "資源不存在",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "狀態、版本、相依或冪等衝突",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "JSON body 超過 10 MiB",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "未預期錯誤",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "workflowId",
+            "in": "path",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true
+          }
+        ],
+        "description": "省略歸屬欄位時新增為 UNASSIGNED、修改時保留；只傳 departmentId 則有效 UUID 為 ASSIGNED、null 為 UNASSIGNED。明確 ASSIGNED 須提供 departmentId；UNKNOWN/UNASSIGNED 的 departmentId 須省略或 null。手動判定來源由後端設為 USER。相依須同 Report、無重複、自我或循環。 相依省略保留、[] 清空，null 不合法；僅重排不產生差異。",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PatchWorkflow"
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "刪除工作任務並保留變更紀錄",
+        "operationId": "deleteDeleteWorkflowResult_workflows_workflowId",
+        "tags": [
+          "workflows"
+        ],
+        "responses": {
+          "200": {
+            "description": "刪除工作任務並保留變更紀錄",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeleteWorkflowResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "參數或 JSON 不合法",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "資源不存在",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "狀態、版本、相依或冪等衝突",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "JSON body 超過 10 MiB",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "未預期錯誤",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "expectedReportVersion",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "required": true
+          },
+          {
+            "name": "reason",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 2000
+            },
+            "required": false
+          },
+          {
+            "name": "workflowId",
+            "in": "path",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true
+          }
+        ],
+        "description": "有後續工作直接依賴時回傳 WORKFLOW_HAS_DEPENDENTS，details.dependentWorkflowIds 列出 ID。"
+      }
+    },
+    "/projects/{projectId}/analyses": {
+      "post": {
+        "summary": "啟動全部或僅未歸屬項目的 AI 歸屬分析",
+        "operationId": "postAnalysisResult_projects_projectId_analyses",
+        "tags": [
+          "projects"
+        ],
+        "responses": {
+          "202": {
+            "description": "啟動全部或僅未歸屬項目的 AI 歸屬分析",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnalysisResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "參數或 JSON 不合法",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "資源不存在",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "狀態、版本、相依或冪等衝突",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "JSON body 超過 10 MiB",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "未預期錯誤",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "description": "永久冪等 key；相同路徑/key/body 回放原成功回應，不同 body 回傳 409。"
+          }
+        ],
+        "description": "ALL_REANALYZE 接受時立即清除全部人工/AI 歸屬與 UNKNOWN；UNASSIGNED_ANALYZE 涵蓋 UNASSIGNED 及 UNKNOWN。保留名稱、描述與相依。",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AnalysisRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/projects/{projectId}/report-diffs": {
+      "get": {
+        "summary": "查詢報告的變更歷程",
+        "operationId": "getReportDiffPage_projects_projectId_report-diffs",
+        "tags": [
+          "projects"
+        ],
+        "responses": {
+          "200": {
+            "description": "查詢報告的變更歷程",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReportDiffPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "參數或 JSON 不合法",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "資源不存在",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "狀態、版本、相依或冪等衝突",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "JSON body 超過 10 MiB",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "未預期錯誤",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50
+            },
+            "required": false
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0
+            },
+            "required": false
+          },
+          {
+            "name": "projectId",
+            "in": "path",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true
+          }
+        ]
+      }
+    },
+    "/projects/{projectId}/close": {
+      "post": {
+        "summary": "單人簽核結案並啟動回饋分析",
+        "operationId": "postCloseResult_projects_projectId_close",
+        "tags": [
+          "projects"
+        ],
+        "responses": {
+          "202": {
+            "description": "單人簽核結案並啟動回饋分析",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CloseResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "參數或 JSON 不合法",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "資源不存在",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "狀態、版本、相依或冪等衝突",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "JSON body 超過 10 MiB",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "未預期錯誤",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "專案已結案，回傳既有結果",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CloseResult"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "description": "永久冪等 key；相同路徑/key/body 回放原成功回應，不同 body 回傳 409。"
+          }
+        ],
+        "description": "結案立即生效，回饋失敗不撤銷。已結案以新 key 重送回 200 和相同回饋任務；原 key 回放 202。允許 UNKNOWN 或 UNASSIGNED。",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CloseRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/jobs/{jobId}": {
+      "get": {
+        "summary": "查詢 AI 任務進度、結果及錯誤",
+        "operationId": "getJob_jobs_jobId",
+        "tags": [
+          "jobs"
+        ],
+        "responses": {
+          "200": {
+            "description": "查詢 AI 任務進度、結果及錯誤",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Job"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "參數或 JSON 不合法",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "資源不存在",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "狀態、版本、相依或冪等衝突",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "JSON body 超過 10 MiB",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "未預期錯誤",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "jobId",
+            "in": "path",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true
+          }
+        ]
+      }
+    },
+    "/jobs/{jobId}/retry": {
+      "post": {
+        "summary": "手動重試已失敗的 AI 任務",
+        "operationId": "postRetryResult_jobs_jobId_retry",
+        "tags": [
+          "jobs"
+        ],
+        "responses": {
+          "202": {
+            "description": "手動重試已失敗的 AI 任務",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RetryResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "參數或 JSON 不合法",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "資源不存在",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "狀態、版本、相依或冪等衝突",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "JSON body 超過 10 MiB",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "未預期錯誤",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "jobId",
+            "in": "path",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "description": "永久冪等 key；相同路徑/key/body 回放原成功回應，不同 body 回傳 409。"
+          }
+        ],
+        "description": "沿用 Job ID，新增批次與三次預算，保留歷史；報告版本已變更或專案結案時禁止重試舊分析。",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RetryRequest"
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Department": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "description": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 10000
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "description"
+        ],
+        "additionalProperties": false
+      },
+      "InitializeMemory": {
+        "type": "object",
+        "properties": {
+          "departments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Department"
+            },
+            "minItems": 1,
+            "maxItems": 200
+          },
+          "relationshipsDescription": {
+            "type": "string",
+            "minLength": 0,
+            "maxLength": 100000
+          }
+        },
+        "required": [
+          "departments",
+          "relationshipsDescription"
+        ],
+        "additionalProperties": false
+      },
+      "GlobalMemory": {
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "departments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Department"
+            },
+            "minItems": 1,
+            "maxItems": 200
+          },
+          "relationshipsDescription": {
+            "type": "string",
+            "minLength": 0,
+            "maxLength": 100000
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "INITIAL",
+              "FEEDBACK"
+            ]
+          },
+          "sourceProjectId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "version",
+          "departments",
+          "relationshipsDescription",
+          "source",
+          "sourceProjectId",
+          "createdAt"
+        ],
+        "additionalProperties": false
+      },
+      "Project": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "OPEN",
+              "CLOSED"
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "closedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "status",
+          "createdAt",
+          "closedAt"
+        ],
+        "additionalProperties": false
+      },
+      "UserDoc": {
+        "type": "object",
+        "properties": {
+          "projectId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "content": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100000
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "projectId",
+          "content",
+          "createdAt"
+        ],
+        "additionalProperties": false
+      },
+      "Workflow": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "reportId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "description": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 10000
+          },
+          "dependsOnWorkflowIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "maxItems": 199,
+            "uniqueItems": true
+          },
+          "assignmentStatus": {
+            "type": "string",
+            "enum": [
+              "UNASSIGNED",
+              "ASSIGNED",
+              "UNKNOWN"
+            ]
+          },
+          "departmentId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "assignmentSource": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "AI",
+                  "USER"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "reportId",
+          "name",
+          "description",
+          "dependsOnWorkflowIds",
+          "assignmentStatus",
+          "departmentId",
+          "assignmentSource",
+          "createdAt",
+          "updatedAt"
+        ],
+        "additionalProperties": false
+      },
+      "Report": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "projectId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "workflows": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Workflow"
+            },
+            "maxItems": 200
+          }
+        },
+        "required": [
+          "id",
+          "projectId",
+          "version",
+          "createdAt",
+          "updatedAt",
+          "workflows"
+        ],
+        "additionalProperties": false
+      },
+      "JobError": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "enum": [
+              "AI_TIMEOUT",
+              "AI_UNAVAILABLE",
+              "AI_RATE_LIMITED",
+              "AI_INVALID_OUTPUT",
+              "AI_AUTH_ERROR",
+              "AI_REQUEST_REJECTED",
+              "MEMORY_VERSION_CONFLICT",
+              "WORKER_INTERRUPTED",
+              "INTERNAL_ERROR"
+            ]
+          },
+          "message": {
+            "type": "string",
+            "minLength": 1
+          },
+          "retryable": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "code",
+          "message",
+          "retryable"
+        ],
+        "additionalProperties": false
+      },
+      "Job": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "projectId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "INITIAL_ANALYSIS",
+              "ALL_REANALYZE",
+              "UNASSIGNED_ANALYZE",
+              "FEEDBACK"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "QUEUED",
+              "RUNNING",
+              "RETRY_WAIT",
+              "SUCCEEDED",
+              "FAILED"
+            ]
+          },
+          "attempts": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 3
+          },
+          "maxAttempts": {
+            "type": "integer",
+            "const": 3
+          },
+          "nextRetryAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "globalMemoryVersion": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "inputReportVersion": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "error": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/JobError"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "startedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "finishedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "result": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "reportVersion": {
+                    "type": "integer",
+                    "minimum": 0
+                  }
+                },
+                "required": [
+                  "reportVersion"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "globalMemoryVersion": {
+                    "type": "integer",
+                    "minimum": 1
+                  }
+                },
+                "required": [
+                  "globalMemoryVersion"
+                ],
+                "additionalProperties": false
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "projectId",
+          "type",
+          "status",
+          "attempts",
+          "maxAttempts",
+          "nextRetryAt",
+          "globalMemoryVersion",
+          "inputReportVersion",
+          "error",
+          "createdAt",
+          "startedAt",
+          "finishedAt",
+          "result"
+        ],
+        "additionalProperties": false
+      },
+      "Change": {
+        "type": "object",
+        "properties": {
+          "workflowId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "operation": {
+            "type": "string",
+            "enum": [
+              "CREATE",
+              "UPDATE",
+              "DELETE"
+            ]
+          },
+          "changedFields": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "id",
+                "reportId",
+                "name",
+                "description",
+                "dependsOnWorkflowIds",
+                "assignmentStatus",
+                "departmentId",
+                "assignmentSource",
+                "createdAt",
+                "updatedAt"
+              ]
+            }
+          },
+          "before": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Workflow"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "after": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Workflow"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "workflowId",
+          "operation",
+          "changedFields",
+          "before",
+          "after"
+        ],
+        "additionalProperties": false
+      },
+      "ReportDiff": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "projectId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "reportId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "eventType": {
+            "type": "string",
+            "enum": [
+              "INITIAL_ANALYSIS",
+              "WORKFLOW_CREATED",
+              "WORKFLOW_UPDATED",
+              "WORKFLOW_DELETED",
+              "ALL_REANALYZE",
+              "UNASSIGNED_ANALYZE",
+              "PROJECT_CLOSED"
+            ]
+          },
+          "phase": {
+            "type": "string",
+            "enum": [
+              "CLEAR",
+              "APPLY"
+            ]
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "USER",
+              "AI",
+              "SYSTEM"
+            ]
+          },
+          "actorId": {
+            "type": "null"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 2000
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "jobId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "globalMemoryVersion": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "fromVersion": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "toVersion": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "changes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Change"
+            }
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "projectId",
+          "reportId",
+          "eventType",
+          "phase",
+          "source",
+          "actorId",
+          "reason",
+          "jobId",
+          "globalMemoryVersion",
+          "fromVersion",
+          "toVersion",
+          "changes",
+          "createdAt"
+        ],
+        "additionalProperties": false
+      },
+      "Error": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "minLength": 1
+              },
+              "message": {
+                "type": "string",
+                "minLength": 1
+              },
+              "details": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            },
+            "required": [
+              "code",
+              "message",
+              "details"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "error"
+        ],
+        "additionalProperties": false
+      },
+      "CreateProject": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "userDoc": {
+            "type": "object",
+            "properties": {
+              "content": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 100000
+              }
+            },
+            "required": [
+              "content"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "name",
+          "userDoc"
+        ],
+        "additionalProperties": false
+      },
+      "CreateProjectResult": {
+        "type": "object",
+        "properties": {
+          "project": {
+            "$ref": "#/components/schemas/Project"
+          },
+          "report": {
+            "$ref": "#/components/schemas/Report"
+          },
+          "job": {
+            "$ref": "#/components/schemas/Job"
+          }
+        },
+        "required": [
+          "project",
+          "report",
+          "job"
+        ],
+        "additionalProperties": false
+      },
+      "ProjectDetails": {
+        "type": "object",
+        "properties": {
+          "project": {
+            "$ref": "#/components/schemas/Project"
+          },
+          "userDoc": {
+            "$ref": "#/components/schemas/UserDoc"
+          },
+          "reportVersion": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "activeAnalysisJobId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "feedbackJobId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "project",
+          "userDoc",
+          "reportVersion",
+          "activeAnalysisJobId",
+          "feedbackJobId"
+        ],
+        "additionalProperties": false
+      },
+      "CreateWorkflow": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "description": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 10000
+          },
+          "dependsOnWorkflowIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "maxItems": 199,
+            "uniqueItems": true
+          },
+          "assignmentStatus": {
+            "type": "string",
+            "enum": [
+              "UNASSIGNED",
+              "ASSIGNED",
+              "UNKNOWN"
+            ]
+          },
+          "departmentId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "expectedReportVersion": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000
+          }
+        },
+        "required": [
+          "name",
+          "description",
+          "expectedReportVersion"
+        ],
+        "additionalProperties": false
+      },
+      "PatchWorkflow": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "description": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 10000
+          },
+          "dependsOnWorkflowIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "maxItems": 199,
+            "uniqueItems": true
+          },
+          "assignmentStatus": {
+            "type": "string",
+            "enum": [
+              "UNASSIGNED",
+              "ASSIGNED",
+              "UNKNOWN"
+            ]
+          },
+          "departmentId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "expectedReportVersion": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000
+          }
+        },
+        "required": [
+          "expectedReportVersion"
+        ],
+        "additionalProperties": false,
+        "anyOf": [
+          {
+            "required": [
+              "name"
+            ]
+          },
+          {
+            "required": [
+              "description"
+            ]
+          },
+          {
+            "required": [
+              "dependsOnWorkflowIds"
+            ]
+          },
+          {
+            "required": [
+              "assignmentStatus"
+            ]
+          },
+          {
+            "required": [
+              "departmentId"
+            ]
+          }
+        ]
+      },
+      "WorkflowResult": {
+        "type": "object",
+        "properties": {
+          "workflow": {
+            "$ref": "#/components/schemas/Workflow"
+          },
+          "reportVersion": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "workflow",
+          "reportVersion"
+        ],
+        "additionalProperties": false
+      },
+      "DeleteWorkflowResult": {
+        "type": "object",
+        "properties": {
+          "deletedWorkflowId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "reportVersion": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "deletedWorkflowId",
+          "reportVersion"
+        ],
+        "additionalProperties": false
+      },
+      "AnalysisRequest": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "ALL_REANALYZE"
+              },
+              "expectedReportVersion": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "reason": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 2000
+              }
+            },
+            "required": [
+              "type",
+              "expectedReportVersion",
+              "reason"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "UNASSIGNED_ANALYZE"
+              },
+              "expectedReportVersion": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "reason": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 2000
+              }
+            },
+            "required": [
+              "type",
+              "expectedReportVersion"
+            ],
+            "additionalProperties": false
+          }
+        ]
+      },
+      "AnalysisResult": {
+        "type": "object",
+        "properties": {
+          "job": {
+            "$ref": "#/components/schemas/Job"
+          },
+          "reportVersion": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "job",
+          "reportVersion"
+        ],
+        "additionalProperties": false
+      },
+      "CloseRequest": {
+        "type": "object",
+        "properties": {
+          "expectedReportVersion": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000
+          }
+        },
+        "required": [
+          "expectedReportVersion"
+        ],
+        "additionalProperties": false
+      },
+      "CloseResult": {
+        "type": "object",
+        "properties": {
+          "project": {
+            "$ref": "#/components/schemas/Project"
+          },
+          "reportVersion": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "feedbackJob": {
+            "$ref": "#/components/schemas/Job"
+          }
+        },
+        "required": [
+          "project",
+          "reportVersion",
+          "feedbackJob"
+        ],
+        "additionalProperties": false
+      },
+      "RetryRequest": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+      },
+      "RetryResult": {
+        "type": "object",
+        "properties": {
+          "job": {
+            "$ref": "#/components/schemas/Job"
+          }
+        },
+        "required": [
+          "job"
+        ],
+        "additionalProperties": false
+      },
+      "ProjectPage": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Project"
+            }
+          },
+          "total": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 200
+          },
+          "offset": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "additionalProperties": false
+      },
+      "ReportDiffPage": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReportDiff"
+            }
+          },
+          "total": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 200
+          },
+          "offset": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "additionalProperties": false
+      }
+    }
+  }
+}

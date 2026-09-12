@@ -10,14 +10,14 @@
 
 使用者上傳一份純文字 UserDoc，AI 整理成 Workflows，參考 Global Memory 建議部門歸屬，組成可編輯 Report。所有編輯及重分析保存 ReportDiff。取得共識後完成 Project，以最終 Workflows、Report、所有 ReportDiff 更新 Global Memory，讓下次分析使用新組織敘述。
 
-| 名詞 | 定義 |
-|---|---|
-| Project | 一次需求分析容器與識別 |
-| UserDoc | Project 唯一的一份純文字需求 |
-| Workflow | 專案內的工作流程／任務，不是全域 Use Case |
-| Report | 當前 Workflows 與歸屬的聚合結果 |
-| ReportDiff | 使用者修改或 AI 重分析的前後差異 |
-| Global Memory | 組織架構與職能敘述，供 AI 分析 |
+| 名詞          | 定義                                      |
+| ------------- | ----------------------------------------- |
+| Project       | 一次專案分析容器與識別                    |
+| UserDoc       | Project 唯一的一份純文字需求              |
+| Workflow      | 專案內的工作流程／任務，不是全域 Use Case |
+| Report        | 當前 Workflows 與歸屬的聚合結果           |
+| ReportDiff    | 使用者修改或 AI 重分析的前後差異          |
+| Global Memory | 組織架構與職能敘述，供 AI 分析            |
 
 ## 2. Context 與永久層
 
@@ -63,14 +63,14 @@ AI 讀最新 Global Memory、結案 Workflows、Report 與所有 ReportDiff，�
 
 以下表與欄位為實作預設，原 spec 未規定精確 DDL。
 
-| 資料表 | 主要欄位 |
-|---|---|
-| project | id, name, status, report_revision, last_analysis_memory_version_id, closed_at |
-| user_doc | id, project_id UNIQUE, text, created_at |
-| workflow | id, project_id, title, description, department_ids JSONB, sort_order |
-| report_diff | id, project_id, type, reason, before_revision, after_revision, changes JSONB, created_at |
-| global_memory_version | id, version UNIQUE, base_version_id, source_project_id, source_report_revision, content JSONB, created_at |
-| ai_job | id, project_id, type, status, base_report_revision, input JSONB, output JSONB, attempt_count, next_retry_at, locked_at, error JSONB |
+| 資料表                | 主要欄位                                                                                                                            |
+| --------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| project               | id, name, status, report_revision, last_analysis_memory_version_id, closed_at                                                       |
+| user_doc              | id, project_id UNIQUE, text, created_at                                                                                             |
+| workflow              | id, project_id, title, description, department_ids JSONB, sort_order                                                                |
+| report_diff           | id, project_id, type, reason, before_revision, after_revision, changes JSONB, created_at                                            |
+| global_memory_version | id, version UNIQUE, base_version_id, source_project_id, source_report_revision, content JSONB, created_at                           |
+| ai_job                | id, project_id, type, status, base_report_revision, input JSONB, output JSONB, attempt_count, next_retry_at, locked_at, error JSONB |
 
 Report 是查詢 DTO；feedbackStatus 由結案 FEEDBACK 工作計算。Global Memory 取最高成功發布版本，初始版本 source_project_id=null。AI 未發布輸出留在 ai_job.output，不直接當成現行 Memory。
 

@@ -1,15 +1,21 @@
 import type { Metadata } from "next";
 import "./globals.css";
-
+import SkipLink from "@/components/skip-link";
+import BackToTop from "@/components/back-to-top";
 export const metadata: Metadata = {
-  title: "Seax Studio｜讓想法，成為好用的體驗",
-  description: "Seax Studio 品牌概念頁：探索數位設計、網站體驗與互動作品。",
+  title: "這是誰的鍋｜把分工理清，讓協作發生",
+  description: "從 PRD 拆解到部門分工，建立可追溯的協作流程與公司共識。",
 };
-
-export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+export default function RootLayout({
+  children,
+}: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="zh-Hant">
-      <body><a className="skip-link" href="#main">跳至主要內容</a>{children}</body>
+      <body>
+        <SkipLink />
+        {children}
+        <BackToTop />
+      </body>
     </html>
   );
 }
