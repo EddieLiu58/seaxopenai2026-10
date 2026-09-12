@@ -1,0 +1,518 @@
+{
+  "schemaVersion": "poc-example-1",
+  "exampleOnly": true,
+  "authority": "C:/Users/User/IdeaProjects/seaxopenai2026-10/backend/spec.md",
+  "description": "虛構 POC 範例，替代舊版治理範本；JSON 邏輯物件不等於正式 DDL。主快照為結案回饋成功後。",
+  "context": {
+    "project": {
+      "lastAnalysisMemoryVersionId": "GM1",
+      "reportRevision": 3,
+      "status": "CLOSED",
+      "name": "商品負回饋",
+      "closedAt": "2026-09-12T15:00:00+08:00",
+      "id": "P1"
+    },
+    "userDoc": {
+      "createdAt": "2026-09-12T09:00:00+08:00",
+      "id": "UD1",
+      "projectId": "P1",
+      "text": "使用者可標記不喜歡商品，後續展示前排除；本期不改廣告候選流程。"
+    },
+    "workflows": [
+      {
+        "projectId": "P1",
+        "departmentIds": [
+          "D_ECOM"
+        ],
+        "sortOrder": 1,
+        "title": "負回饋操作入口",
+        "description": "使用者標記不喜歡商品。",
+        "id": "W1"
+      },
+      {
+        "projectId": "P1",
+        "departmentIds": [
+          "D_SEARCH"
+        ],
+        "sortOrder": 2,
+        "title": "展示前過濾",
+        "description": "候選流程不變，展示前排除商品。",
+        "id": "W2"
+      }
+    ],
+    "report": {
+      "status": "CLOSED",
+      "workflows": [
+        {
+          "projectId": "P1",
+          "departmentIds": [
+            "D_ECOM"
+          ],
+          "sortOrder": 1,
+          "title": "負回饋操作入口",
+          "description": "使用者標記不喜歡商品。",
+          "id": "W1"
+        },
+        {
+          "projectId": "P1",
+          "departmentIds": [
+            "D_SEARCH"
+          ],
+          "sortOrder": 2,
+          "title": "展示前過濾",
+          "description": "候選流程不變，展示前排除商品。",
+          "id": "W2"
+        }
+      ],
+      "revision": 3,
+      "projectId": "P1"
+    },
+    "reportDiffs": [
+      {
+        "type": "INITIAL_ANALYSIS",
+        "projectId": "P1",
+        "reason": null,
+        "changes": [
+          {
+            "after": {
+              "projectId": "P1",
+              "departmentIds": [
+                "D_SEARCH"
+              ],
+              "sortOrder": 1,
+              "title": "負回饋操作入口",
+              "description": "使用者標記不喜歡商品。",
+              "id": "W1"
+            },
+            "workflowId": "W1",
+            "before": null
+          },
+          {
+            "after": {
+              "projectId": "P1",
+              "departmentIds": [],
+              "sortOrder": 2,
+              "title": "展示前過濾",
+              "description": "候選流程不變，展示前排除商品。",
+              "id": "W2"
+            },
+            "workflowId": "W2",
+            "before": null
+          }
+        ],
+        "id": "RD1",
+        "createdAt": "2026-09-12T10:00:00+08:00",
+        "beforeRevision": 0,
+        "afterRevision": 1
+      },
+      {
+        "type": "WORKFLOW_UPDATED",
+        "projectId": "P1",
+        "reason": "入口應由電商維護。",
+        "changes": [
+          {
+            "after": {
+              "projectId": "P1",
+              "departmentIds": [
+                "D_ECOM"
+              ],
+              "sortOrder": 1,
+              "title": "負回饋操作入口",
+              "description": "使用者標記不喜歡商品。",
+              "id": "W1"
+            },
+            "workflowId": "W1",
+            "before": {
+              "projectId": "P1",
+              "departmentIds": [
+                "D_SEARCH"
+              ],
+              "sortOrder": 1,
+              "title": "負回饋操作入口",
+              "description": "使用者標記不喜歡商品。",
+              "id": "W1"
+            }
+          }
+        ],
+        "id": "RD2",
+        "createdAt": "2026-09-12T11:00:00+08:00",
+        "beforeRevision": 1,
+        "afterRevision": 2
+      },
+      {
+        "type": "UNASSIGNED_REANALYZE",
+        "projectId": "P1",
+        "reason": null,
+        "changes": [
+          {
+            "after": {
+              "projectId": "P1",
+              "departmentIds": [
+                "D_SEARCH"
+              ],
+              "sortOrder": 2,
+              "title": "展示前過濾",
+              "description": "候選流程不變，展示前排除商品。",
+              "id": "W2"
+            },
+            "workflowId": "W2",
+            "before": {
+              "projectId": "P1",
+              "departmentIds": [],
+              "sortOrder": 2,
+              "title": "展示前過濾",
+              "description": "候選流程不變，展示前排除商品。",
+              "id": "W2"
+            }
+          }
+        ],
+        "id": "RD3",
+        "createdAt": "2026-09-12T12:00:00+08:00",
+        "beforeRevision": 2,
+        "afterRevision": 3
+      }
+    ]
+  },
+  "permanent": {
+    "currentGlobalMemoryVersionId": "GM2",
+    "globalMemoryVersions": [
+      {
+        "version": 1,
+        "createdAt": "2026-09-12T08:00:00+08:00",
+        "content": {
+          "departments": [
+            {
+              "responsibilities": [
+                "商品頁面互動"
+              ],
+              "collaborations": [],
+              "id": "D_ECOM",
+              "name": "電子商務平台",
+              "description": "負責電商頁面與操作入口。"
+            },
+            {
+              "responsibilities": [
+                "推薦展示"
+              ],
+              "collaborations": [],
+              "id": "D_SEARCH",
+              "name": "搜尋推廣部門",
+              "description": "負責搜尋推薦與最終展示決策。"
+            },
+            {
+              "responsibilities": [
+                "廣告候選"
+              ],
+              "collaborations": [],
+              "id": "D_AD",
+              "name": "廣告部門",
+              "description": "負責廣告候選與競價。"
+            }
+          ]
+        },
+        "sourceProjectId": null,
+        "id": "GM1",
+        "sourceReportRevision": null,
+        "baseVersionId": null
+      },
+      {
+        "version": 2,
+        "createdAt": "2026-09-12T15:01:00+08:00",
+        "content": {
+          "departments": [
+            {
+              "responsibilities": [
+                "商品頁面互動",
+                "取得商品負回饋"
+              ],
+              "collaborations": [
+                {
+                  "description": "提供使用者負回饋供展示前過濾。",
+                  "departmentId": "D_SEARCH"
+                }
+              ],
+              "id": "D_ECOM",
+              "name": "電子商務平台",
+              "description": "負責電商頁面與使用者互動入口，包含商品負回饋操作。"
+            },
+            {
+              "responsibilities": [
+                "推薦展示",
+                "展示前偏好過濾"
+              ],
+              "collaborations": [],
+              "id": "D_SEARCH",
+              "name": "搜尋推廣部門",
+              "description": "負責搜尋推薦與最終展示；候選流程不變時可於展示前套用商品偏好過濾。"
+            },
+            {
+              "responsibilities": [
+                "廣告候選"
+              ],
+              "collaborations": [],
+              "id": "D_AD",
+              "name": "廣告部門",
+              "description": "負責廣告候選與競價。本案例未修改候選流程，不能據此推論廣告沒有過濾能力。"
+            }
+          ]
+        },
+        "sourceProjectId": "P1",
+        "id": "GM2",
+        "sourceReportRevision": 3,
+        "baseVersionId": "GM1"
+      }
+    ]
+  },
+  "operations": {
+    "aiJob": {
+      "type": "FEEDBACK",
+      "projectId": "P1",
+      "input": {
+        "workflows": [
+          {
+            "projectId": "P1",
+            "departmentIds": [
+              "D_ECOM"
+            ],
+            "sortOrder": 1,
+            "title": "負回饋操作入口",
+            "description": "使用者標記不喜歡商品。",
+            "id": "W1"
+          },
+          {
+            "projectId": "P1",
+            "departmentIds": [
+              "D_SEARCH"
+            ],
+            "sortOrder": 2,
+            "title": "展示前過濾",
+            "description": "候選流程不變，展示前排除商品。",
+            "id": "W2"
+          }
+        ],
+        "report": {
+          "status": "CLOSED",
+          "workflows": [
+            {
+              "projectId": "P1",
+              "departmentIds": [
+                "D_ECOM"
+              ],
+              "sortOrder": 1,
+              "title": "負回饋操作入口",
+              "description": "使用者標記不喜歡商品。",
+              "id": "W1"
+            },
+            {
+              "projectId": "P1",
+              "departmentIds": [
+                "D_SEARCH"
+              ],
+              "sortOrder": 2,
+              "title": "展示前過濾",
+              "description": "候選流程不變，展示前排除商品。",
+              "id": "W2"
+            }
+          ],
+          "revision": 3,
+          "projectId": "P1"
+        },
+        "globalMemory": {
+          "departments": [
+            {
+              "responsibilities": [
+                "商品頁面互動"
+              ],
+              "collaborations": [],
+              "id": "D_ECOM",
+              "name": "電子商務平台",
+              "description": "負責電商頁面與操作入口。"
+            },
+            {
+              "responsibilities": [
+                "推薦展示"
+              ],
+              "collaborations": [],
+              "id": "D_SEARCH",
+              "name": "搜尋推廣部門",
+              "description": "負責搜尋推薦與最終展示決策。"
+            },
+            {
+              "responsibilities": [
+                "廣告候選"
+              ],
+              "collaborations": [],
+              "id": "D_AD",
+              "name": "廣告部門",
+              "description": "負責廣告候選與競價。"
+            }
+          ]
+        },
+        "globalMemoryVersionId": "GM1",
+        "reportDiffs": [
+          {
+            "type": "INITIAL_ANALYSIS",
+            "projectId": "P1",
+            "reason": null,
+            "changes": [
+              {
+                "after": {
+                  "projectId": "P1",
+                  "departmentIds": [
+                    "D_SEARCH"
+                  ],
+                  "sortOrder": 1,
+                  "title": "負回饋操作入口",
+                  "description": "使用者標記不喜歡商品。",
+                  "id": "W1"
+                },
+                "workflowId": "W1",
+                "before": null
+              },
+              {
+                "after": {
+                  "projectId": "P1",
+                  "departmentIds": [],
+                  "sortOrder": 2,
+                  "title": "展示前過濾",
+                  "description": "候選流程不變，展示前排除商品。",
+                  "id": "W2"
+                },
+                "workflowId": "W2",
+                "before": null
+              }
+            ],
+            "id": "RD1",
+            "createdAt": "2026-09-12T10:00:00+08:00",
+            "beforeRevision": 0,
+            "afterRevision": 1
+          },
+          {
+            "type": "WORKFLOW_UPDATED",
+            "projectId": "P1",
+            "reason": "入口應由電商維護。",
+            "changes": [
+              {
+                "after": {
+                  "projectId": "P1",
+                  "departmentIds": [
+                    "D_ECOM"
+                  ],
+                  "sortOrder": 1,
+                  "title": "負回饋操作入口",
+                  "description": "使用者標記不喜歡商品。",
+                  "id": "W1"
+                },
+                "workflowId": "W1",
+                "before": {
+                  "projectId": "P1",
+                  "departmentIds": [
+                    "D_SEARCH"
+                  ],
+                  "sortOrder": 1,
+                  "title": "負回饋操作入口",
+                  "description": "使用者標記不喜歡商品。",
+                  "id": "W1"
+                }
+              }
+            ],
+            "id": "RD2",
+            "createdAt": "2026-09-12T11:00:00+08:00",
+            "beforeRevision": 1,
+            "afterRevision": 2
+          },
+          {
+            "type": "UNASSIGNED_REANALYZE",
+            "projectId": "P1",
+            "reason": null,
+            "changes": [
+              {
+                "after": {
+                  "projectId": "P1",
+                  "departmentIds": [
+                    "D_SEARCH"
+                  ],
+                  "sortOrder": 2,
+                  "title": "展示前過濾",
+                  "description": "候選流程不變，展示前排除商品。",
+                  "id": "W2"
+                },
+                "workflowId": "W2",
+                "before": {
+                  "projectId": "P1",
+                  "departmentIds": [],
+                  "sortOrder": 2,
+                  "title": "展示前過濾",
+                  "description": "候選流程不變，展示前排除商品。",
+                  "id": "W2"
+                }
+              }
+            ],
+            "id": "RD3",
+            "createdAt": "2026-09-12T12:00:00+08:00",
+            "beforeRevision": 2,
+            "afterRevision": 3
+          }
+        ]
+      },
+      "model": "example-stub",
+      "output": {
+        "content": {
+          "departments": [
+            {
+              "responsibilities": [
+                "商品頁面互動",
+                "取得商品負回饋"
+              ],
+              "collaborations": [
+                {
+                  "description": "提供使用者負回饋供展示前過濾。",
+                  "departmentId": "D_SEARCH"
+                }
+              ],
+              "id": "D_ECOM",
+              "name": "電子商務平台",
+              "description": "負責電商頁面與使用者互動入口，包含商品負回饋操作。"
+            },
+            {
+              "responsibilities": [
+                "推薦展示",
+                "展示前偏好過濾"
+              ],
+              "collaborations": [],
+              "id": "D_SEARCH",
+              "name": "搜尋推廣部門",
+              "description": "負責搜尋推薦與最終展示；候選流程不變時可於展示前套用商品偏好過濾。"
+            },
+            {
+              "responsibilities": [
+                "廣告候選"
+              ],
+              "collaborations": [],
+              "id": "D_AD",
+              "name": "廣告部門",
+              "description": "負責廣告候選與競價。本案例未修改候選流程，不能據此推論廣告沒有過濾能力。"
+            }
+          ]
+        }
+      },
+      "error": null,
+      "provider": "STUB",
+      "id": "JOB_FEEDBACK1",
+      "status": "COMPLETED",
+      "lockedAt": null,
+      "baseReportRevision": 3,
+      "publishedMemoryVersionId": "GM2",
+      "nextRetryAt": null,
+      "attemptCount": 1
+    },
+    "completionStatus": {
+      "projectId": "P1",
+      "jobId": "JOB_FEEDBACK1",
+      "reportRevision": 3,
+      "feedbackStatus": "COMPLETED",
+      "globalMemoryVersionId": "GM2",
+      "projectStatus": "CLOSED"
+    }
+  }
+}
