@@ -154,6 +154,7 @@ ReportDiff 僅能新增及讀取。Job 另外保存每次執行嘗試的批次�
 ### 共通規則
 
 - Base path：`/api/v1`；請求與回應使用 `application/json`，欄位採 camelCase。
+- 資源路徑最多三層，以移除 `/api/v1` 後的 path segments 計算，資源名稱與 ID 各算一層，query 不計入。例如 `/projects/{projectId}/report` 為三層，`/workflows/{workflowId}` 為兩層。參考 [Microsoft REST API 設計指南的資源 URI 建議](https://learn.microsoft.com/en-us/azure/architecture/best-practices/api-design#resource-uri-naming-conventions)，避免比 collection/item/collection 更深的巢狀路徑；本專案將三層訂為上限。
 - 字串長度以 Unicode code point 計算：專案名及 Workflow 名稱 1–200、Workflow 描述 1–10,000、UserDoc 1–100,000、reason 1–2,000。必填文字不能只有空白；可選 reason 省略時存 null。
 - GlobalMemory 至少 1、最多 200 個部門；部門名稱 1–200、描述 1–10,000、關係文字最多 100,000 字元。API body 上限 10 MiB。
 - 所有 POST 必須提供 `Idempotency-Key`（UUID）header。相同路徑與 key、相同 JSON 內容回放原 HTTP 狀態與 body；JSON 欄位順序不影響判定。相同 key 不同內容回傳 409 `IDEMPOTENCY_KEY_REUSED`。併發重複請求只能產生一次效果。
@@ -167,22 +168,29 @@ ReportDiff 僅能新增及讀取。Job 另外保存每次執行嘗試的批次�
 
 以下物件表示欄位契約，`?` 表示可省略；實際 JSON 必須使用雙引號。
 
-| 方法與路徑 | 請求 | 成功回應 |
-|---|---|---|
-| `POST /global-memory` | `{ departments: [{ id, name, description }], relationshipsDescription }` | 201，GlobalMemory v1；已初始化為 409 `GLOBAL_MEMORY_ALREADY_INITIALIZED`。 |
-| `GET /global-memory` | 可選 query version，正整數；省略取最新。 | 200，GlobalMemory；尚未初始化或版本不存在為 404。 |
-| `POST /projects` | `{ name, userDoc: { content } }` | 202，`{ project, report, job }`；未初始化記憶為 409 `GLOBAL_MEMORY_NOT_INITIALIZED`。 |
-| `GET /projects` | 可選 query status（OPEN 或 CLOSED）與分頁。 | 200，Project 分頁列表。 |
-| `GET /projects/{projectId}` | 無。 | 200，`{ project, userDoc, reportVersion, activeAnalysisJobId, feedbackJobId }`；無相關任務時 ID 為 null。 |
-| `GET /projects/{projectId}/report` | 無。 | 200，Report 欄位加 workflows 陣列。 |
-| `POST /projects/{projectId}/workflows` | `{ name, description, assignmentStatus?, departmentId?, expectedReportVersion, reason? }`；departmentId 可省略或為 null。 | 201，`{ workflow, reportVersion }`。 |
-| `PATCH /projects/{projectId}/workflows/{workflowId}` | `{ expectedReportVersion, name?, description?, assignmentStatus?, departmentId?, reason? }`；至少一個 Workflow 欄位。 | 200，`{ workflow, reportVersion }`；省略表示不變，歸屬欄位依下方寫入規則處理。 |
-| `DELETE /projects/{projectId}/workflows/{workflowId}` | 必填 query expectedReportVersion，可選 reason，無 body。 | 200，`{ deletedWorkflowId, reportVersion }`。 |
-| `POST /projects/{projectId}/analyses` | `{ type, expectedReportVersion, reason? }`；type 為 ALL_REANALYZE / UNASSIGNED_ANALYZE，前者 reason 必填。 | 202，`{ job, reportVersion }`；全部重新分析回傳清除後版本。 |
-| `GET /projects/{projectId}/report-diffs` | 分頁。 | 200，ReportDiff 分頁列表。 |
-| `POST /projects/{projectId}/close` | `{ expectedReportVersion, reason? }`。 | 首次 202，`{ project, reportVersion, feedbackJob }`；已結案且使用新 key 時回傳 200 及既有結果。 |
-| `GET /jobs/{jobId}` | 無。 | 200，Job 欄位加 result。 |
-| `POST /jobs/{jobId}/retry` | `{}`。 | 202，`{ job }`；非 FAILED、同專案已有分析進行中或輸入過期則 409。 |
+| 中文描述 | 方法與路徑 | 請求 | 成功回應 |
+|---|---|---|---|
+| 初始化全系統共用的組織表 | `POST /global-memory` | `{ departments: [{ id, name, description }], relationshipsDescription }` | 201，GlobalMemory v1；已初始化為 409 `GLOBAL_MEMORY_ALREADY_INITIALIZED`。 |
+| 查詢最新或指定版本的組織表 | `GET /global-memory` | 可選 query version，正整數；省略取最新。 | 200，GlobalMemory；尚未初始化或版本不存在為 404。 |
+| 建立專案、提交需求並啟動首次 AI 分析 | `POST /projects` | `{ name, userDoc: { content } }` | 202，`{ project, report, job }`；未初始化記憶為 409 `GLOBAL_MEMORY_NOT_INITIALIZED`。 |
+| 查詢專案列表 | `GET /projects` | 可選 query status（OPEN 或 CLOSED）與分頁。 | 200，Project 分頁列表。 |
+| 查詢專案詳情、需求內容與任務關聯 | `GET /projects/{projectId}` | 無。 | 200，`{ project, userDoc, reportVersion, activeAnalysisJobId, feedbackJobId }`；無相關任務時 ID 為 null。 |
+| 查詢報告及所有工作任務的歸屬結果 | `GET /projects/{projectId}/report` | 無。 | 200，Report 欄位加 workflows 陣列。 |
+| 在指定專案中手動新增工作任務 | `POST /workflows` | `{ projectId, name, description, assignmentStatus?, departmentId?, expectedReportVersion, reason? }`；projectId 必填，departmentId 可省略或為 null。 | 201，`{ workflow, reportVersion }`。 |
+| 修改工作任務內容或部門歸屬 | `PATCH /workflows/{workflowId}` | `{ expectedReportVersion, name?, description?, assignmentStatus?, departmentId?, reason? }`；至少一個 Workflow 欄位。 | 200，`{ workflow, reportVersion }`；省略表示不變，歸屬欄位依下方寫入規則處理。 |
+| 刪除工作任務並保留變更紀錄 | `DELETE /workflows/{workflowId}` | 必填 query expectedReportVersion，可選 reason，無 body。 | 200，`{ deletedWorkflowId, reportVersion }`。 |
+| 啟動全部或僅未歸屬項目的 AI 歸屬分析（後者含「不知道」） | `POST /projects/{projectId}/analyses` | `{ type, expectedReportVersion, reason? }`；type 為 ALL_REANALYZE / UNASSIGNED_ANALYZE，前者 reason 必填。 | 202，`{ job, reportVersion }`；全部重新分析回傳清除後版本。 |
+| 查詢報告的變更歷程 | `GET /projects/{projectId}/report-diffs` | 分頁。 | 200，ReportDiff 分頁列表。 |
+| 單人簽核結案並啟動回饋分析 | `POST /projects/{projectId}/close` | `{ expectedReportVersion, reason? }`。 | 首次 202，`{ project, reportVersion, feedbackJob }`；已結案且使用新 key 時回傳 200 及既有結果。 |
+| 查詢 AI 任務進度、結果及錯誤 | `GET /jobs/{jobId}` | 無。 | 200，Job 欄位加 result。 |
+| 手動重試已失敗的 AI 任務 | `POST /jobs/{jobId}/retry` | `{}`。 | 202，`{ job }`；非 FAILED、同專案已有分析進行中或輸入過期則 409。 |
+
+Workflow 資源關聯與寫入規則：
+
+- 建立時由 body 的 projectId 找到專案的唯一 Report，後端設定 workflow.reportId；專案不存在回傳 404。
+- 修改及刪除以全域唯一 workflowId 定位，後端透過 Workflow → Report → Project 取得所屬專案。expectedReportVersion 一律比對該 Report，並在同一交易內執行原有專案鎖定、結案及進行中任務檢查。
+- PATCH 不接受 projectId 或 reportId，不允許搬移 Workflow；傳入時回傳 400 INVALID_REQUEST。Workflow 不存在或已刪除時，PATCH / DELETE 回傳 404。
+- 專案內的 Workflow 集合仍由 `GET /projects/{projectId}/report` 的 workflows 取得。Workflow 寫入僅提供上表頂層路徑，不另提供舊巢狀路徑作為別名。
 
 Workflow 歸屬寫入規則：
 
@@ -275,6 +283,7 @@ AI 在 202 之後的失敗由 Job 的 error 回報，不改寫原 HTTP 回應。
 14. AI 無法區分候選部門或沒有適合部門時回傳 UNKNOWN，不硬分類；全部結果為 UNKNOWN 仍為 SUCCEEDED，不自動重試。
 15. 手動標記 UNKNOWN、指定部門及清除判定，回傳的狀態／部門／來源組合正確，ReportDiff 包含狀態轉換；不合法組合回傳 400。
 16. 含 UNKNOWN 的報告可由單人結案；回饋不將 UNKNOWN 當成已確認的部門歸屬。技術錯誤不偽裝成 UNKNOWN。
+17. 所有 API 資源路徑扣除 `/api/v1` 後最多三層；POST `/workflows` 透過 body 的 projectId 建立關聯，PATCH / DELETE `/workflows/{workflowId}` 正確檢查所屬專案及 Report 版本，不能藉由頂層路徑繞過結案或分析中的限制。
 
 ## 10. 使用者後續提供的資料
 
