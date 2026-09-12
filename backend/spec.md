@@ -2,7 +2,7 @@
 
 ## 1. 目的與範圍
 
-使用者以 API 提交純文字需求，AI 將需求拆成 Workflows，再根據各 Workflow 的名稱、描述與全系統共用的組織表（GlobalMemory）決定部門歸屬。使用者可以修正結果，單人確認後結案。系統分析最終結果及修改歷程，改善後續使用的組織職能描述。
+使用者以 API 提交純文字需求，AI 將需求拆成具有先後相依關係的 Workflows，再根據各 Workflow 的名稱、描述與全系統共用的組織表（GlobalMemory）決定部門歸屬。使用者可以修正結果，單人確認後結案。系統分析最終結果及修改歷程，改善後續使用的組織職能描述。
 
 POC 採單一組織環境、單一後端服務及 PostgreSQL。登入、角色權限、多人簽核、結案重開、需求替換及專案刪除不在本次範圍。API 不接受實體檔案，也不需要檔案儲存服務。
 
@@ -17,7 +17,7 @@ POC 採單一組織環境、單一後端服務及 PostgreSQL。登入、角色�
 | Project | 專案。`id`、`name`、`status`（OPEN / CLOSED）、`createdAt`、`closedAt`（可為 null）。一個專案只有一份 UserDoc 及一份 Report。 |
 | UserDoc | 需求文字。`projectId`（唯一）、`content`、`createdAt`。保存 API body 的文字內容，不是檔案。建立後不允許替換。 |
 | Report | Workflow 集合的報告。`id`、`projectId`（唯一）、`version`、`createdAt`、`updatedAt`。不另存一份可獨立編輯的報告文字；讀取時組合其 Workflows。 |
-| Workflow | 工作任務。`id`、`reportId`、`name`、`description`、`assignmentStatus`（UNASSIGNED / ASSIGNED / UNKNOWN）、`departmentId`（可為 null）、`assignmentSource`（AI / USER / null）、`createdAt`、`updatedAt`。 |
+| Workflow | 工作任務。`id`、`reportId`、`name`、`description`、`dependsOnWorkflowIds`（UUID 陣列，不可為 null）、`assignmentStatus`（UNASSIGNED / ASSIGNED / UNKNOWN）、`departmentId`（可為 null）、`assignmentSource`（AI / USER / null）、`createdAt`、`updatedAt`。 |
 | Department | 組織表內的部門。`id`、`name`、`description`。部門 ID 在不同 GlobalMemory 版本之間保持一致。 |
 | GlobalMemory | 全系統共用且保留歷史的組織表。`version`（從 1 遞增）、`departments`、`relationshipsDescription`（字串）、`source`（INITIAL / FEEDBACK）、`sourceProjectId`（初始版本為 null）、`createdAt`。 |
 | ReportDiff | 不可修改的報告事件及差異，結構見第 5 節。 |
@@ -26,7 +26,7 @@ POC 採單一組織環境、單一後端服務及 PostgreSQL。登入、角色�
 ### Report 與 Workflow
 
 - 建立專案時一併建立空 Report，初始 `version = 0`；首次分析成功後新增 Workflows。
-- Report 對應零到多個 Workflows。API 回傳時依 `createdAt`、`id` 升冪排列。
+- Report 對應零到多個 Workflows。API 的 workflows 陣列以相依關係做拓撲排序，前置工作一定出現在依賴它的工作之前；每一步從前置工作皆已輸出的候選工作中，依 `createdAt`、`id` 升冪選取。陣列順序用於穩定呈現，實際先後限制以 dependsOnWorkflowIds 為準，沒有相依的項目不因陣列位置而被視為必須依序執行。
 - 歸屬使用下表三種狀態；「不知道」是 Workflow 的判定結果，不是 GlobalMemory 裡的虛擬部門。
 - 手動指定部門或標記不知道時來源為 USER；AI 判定時來源為 AI，即使部門與先前相同也是如此。清除判定時來源為 null。
 - AI 只能選擇本次 GlobalMemory 中存在的部門。名稱、描述或組織職能不足以支持判定、存在多個無法區分的候選部門，或沒有適合部門時，必須回傳 UNKNOWN 與 null departmentId，不得為了填滿歸屬而猜測。手動歸屬也必須參照有效部門 ID。
@@ -40,6 +40,28 @@ POC 採單一組織環境、單一後端服務及 PostgreSQL。登入、角色�
 | UNKNOWN | 不知道 | null | AI / USER | 已判定無法確定部門，不強制分類。 |
 
 API、資料庫與 AI 結果驗證均須維持上表組合。只看 departmentId 是否為 null 無法區分 UNASSIGNED 與 UNKNOWN，回應必須包含 assignmentStatus。
+
+### Workflow 相依關係
+
+- `dependsOnWorkflowIds` 保存此工作直接依賴的前置 Workflow ID。B 的陣列包含 A，表示 **A 必須完成後，B 才能開始**；圖上的箭頭方向為 A → B。
+- 可有多個前置工作，全部完成後才可開始；同一工作也可被多個後續工作依賴。沒有前置工作時回傳 `[]`。彼此不存在直接或間接相依的工作，在本規格的相依限制下可並行。
+- 僅允許同一 Report 內的相依，禁止不存在或已刪除的 ID、跨專案參照、自我相依、重複 ID，以及直接或間接循環，例如 A → B → A。
+- 整份 Report 必須是一張有向無環圖（DAG），可有多個起點、終點或互不連接的分支，不強制形成單一路線。相依陣列視為集合，回應及快照按 UUID 升冪排序；只調整陣列順序不算變更。
+- `[]` 表示目前沒有已建立的前置限制，不代表系統已證明該工作在真實業務中獨立。AI 僅建立需求文字足以支持的相依，不確定時不臆造，供使用者後續補充。
+- 相依關係與部門歸屬獨立；UNASSIGNED 或 UNKNOWN 的工作仍可有前置及後續工作。修改名稱、描述或歸屬不自動修改相依；修改相依也不自動重新歸屬。
+- 此處定義報告中的業務先後關係。POC 不追蹤每個 Workflow 的實際執行進度、不自動排程，也不因相依關係而要求各 Workflow 實際完成才可簽核報告。
+- 資料庫以 WorkflowDependency 關聯表保存邊，欄位為 `reportId`、`workflowId`、`dependsOnWorkflowId`；兩個 Workflow 均以同 Report 的外鍵約束連結，邊唯一、自我相依禁止。刪除被依賴的 Workflow 使用 RESTRICT；刪除允許移除的 Workflow 時同步移除其自身的前置關聯。
+- 後端在鎖定所屬專案的同一交易內驗證完整圖無循環，再提交相依變更、Report 版本與 ReportDiff，避免並行請求各自通過卻合併出循環。
+
+例如「退款申請」完成後，「退款審核」與「帳戶驗證」可以並行；「退款撥款」必須等待兩者：
+
+```mermaid
+flowchart LR
+    A[退款申請] --> B[退款審核]
+    A --> C[帳戶驗證]
+    B --> D[退款撥款]
+    C --> D
+```
 
 ### GlobalMemory 初始化與更新
 
@@ -55,11 +77,11 @@ API、資料庫與 AI 結果驗證均須維持上表組合。只看 departmentId
 
 `POST /api/v1/projects` 同時接收專案名稱與需求文字，建立 Project、UserDoc、空 Report 及 INITIAL_ANALYSIS 任務，回傳 202。
 
-AI 先根據 UserDoc 拆出 Workflow 名稱與描述，再僅根據各 Workflow 的名稱、描述及本次 GlobalMemory 決定歸屬。首次分析成功前，禁止手動修改、其他分析及結案；失敗時可透過任務重試 API 重新執行。
+AI 先根據 UserDoc 拆出 Workflow 名稱、描述與相依關係，再僅根據各 Workflow 的名稱、描述及本次 GlobalMemory 決定歸屬；相依關係及前置工作的部門不作為歸屬判定的額外依據。首次分析成功前，禁止手動修改、其他分析及結案；失敗時可透過任務重試 API 重新執行。
 
 ### 全部重新分析歸屬
 
-- 僅重新決定既有 Workflows 的部門，不新增、刪除或修改 Workflow 的 ID、名稱及描述。
+- 僅重新決定既有 Workflows 的部門，不新增、刪除或修改 Workflow 的 ID、名稱、描述及 dependsOnWorkflowIds。
 - **清除所有既有部門歸屬，包含使用者手動指定的歸屬。** 接受請求時，在同一資料庫交易內將所有 Workflow（包含 UNKNOWN）重設為 UNASSIGNED、departmentId 與 assignmentSource 設為 null、記錄差異並建立 ALL_REANALYZE 任務。
 - 舊歸屬、舊 ReportDiff 及請求的 `reason` 不作為本次歸屬依據；reason 僅供記錄及結案後回饋使用。
 - AI 結果全部驗證成功後，在同一交易內寫入歸屬及 ReportDiff，不部分套用。
@@ -69,7 +91,7 @@ AI 先根據 UserDoc 拆出 Workflow 名稱與描述，再僅根據各 Workflow 
 ### 僅分析未歸屬項目
 
 - 接受請求時選取所有 assignmentStatus 為 UNASSIGNED 或 UNKNOWN 的 Workflows，保存目標 ID、名稱及描述快照。因此「不知道」也能由此操作再次判定。
-- 僅分析並更新這些項目；已有部門歸屬的項目一律保留。
+- 僅分析並更新這些項目的歸屬；已有部門歸屬的項目一律保留，所有 Workflow 的 dependsOnWorkflowIds 均不變。
 - 沒有未歸屬項目時回傳 409 `NO_UNASSIGNED_WORKFLOWS`，不建立任務。
 - AI 可以再次回傳 UNKNOWN；這是有效分析結果，不等於任務失敗，也不會因此自動重試。此操作不預先清除目標的原狀態，執行失敗時維持原 UNASSIGNED 或 UNKNOWN。
 
@@ -77,7 +99,8 @@ AI 先根據 UserDoc 拆出 Workflow 名稱與描述，再僅根據各 Workflow 
 
 - Workflow 新增、編輯、刪除各自透過 API 即時儲存，不另設「儲存整份 Report」API。
 - 每次實際變更與 ReportDiff 在同一資料庫交易寫入；批次分析也以同一交易提交其全部結果。
-- 刪除 Workflow 後，ReportDiff 仍保存刪除前的完整快照。
+- 若有其他 Workflow 直接依賴待刪除的工作，回傳 409 `WORKFLOW_HAS_DEPENDENTS`，error.details 包含按 UUID 升冪排列的 `dependentWorkflowIds`。使用者須先修改這些工作的 dependsOnWorkflowIds，再以最新 Report 版本刪除；不自動解除其他工作的前置限制。
+- 允許刪除時，同一交易移除該工作及其自身的前置關聯；ReportDiff 仍保存刪除前含 dependsOnWorkflowIds 的完整快照。
 - 欄位完全沒有變動時回傳原結果，不遞增版本、不產生多餘差異。
 
 ### 單人簽核結案
@@ -130,15 +153,18 @@ AI 先根據 UserDoc 拆出 Workflow 名稱與描述，再僅根據各 Workflow 
 | `changes` | 差異陣列，每項包含 `workflowId`、`operation`（CREATE / UPDATE / DELETE）、`changedFields`、`before`、`after`。 |
 | `createdAt` | 事件時間。 |
 
-before / after 為完整 Workflow 快照，包括 ID、Report ID、名稱、描述、assignmentStatus、部門、來源及建立／更新時間；UNASSIGNED、ASSIGNED、UNKNOWN 之間的轉換也須記錄。CREATE 的 before 為 null；DELETE 的 after 為 null；UPDATE 兩者皆存在。changedFields 列出實際不同的欄位；新增／刪除列出快照全部欄位。
+before / after 為完整 Workflow 快照，包括 ID、Report ID、名稱、描述、dependsOnWorkflowIds、assignmentStatus、部門、來源及建立／更新時間；UNASSIGNED、ASSIGNED、UNKNOWN 之間的轉換也須記錄。CREATE 的 before 為 null；DELETE 的 after 為 null；UPDATE 兩者皆存在。changedFields 列出實際不同的欄位；新增／刪除列出快照全部欄位。
+
+相依變更使用 WORKFLOW_UPDATED 事件，changes 中的 changedFields 包含 dependsOnWorkflowIds；只改相依也須遞增 Report 版本。首次分析的 CREATE 快照包含完整相依 ID；若驗證失敗，整筆操作不修改 Workflow、Report 版本或 ReportDiff。
 
 ReportDiff 僅能新增及讀取。Job 另外保存每次執行嘗試的批次、次數、開始／結束時間、輸入組織表版本及錯誤，供失敗診斷；API 不回傳供應商原始錯誤內容。
 
 ## 6. AI 執行與重試
 
 - 使用資料庫任務表與後端背景 worker，不另引入訊息佇列。API 建立資源及任務後立即回傳 202，不等待 AI。
-- 報告分析只允許以 Workflow 名稱、描述和 GlobalMemory 作歸屬判斷；UserDoc 僅用於首次 Workflow 拆解。
-- AI 每個歸屬結果必須明確包含 assignmentStatus（僅 ASSIGNED 或 UNKNOWN）及 departmentId，assignmentSource 由後端設為 AI。UNKNOWN 必須搭配 null，ASSIGNED 必須搭配有效部門 ID；不能只回 null 或用 UNASSIGNED 表示不知道。AI 結果須先驗證結構、欄位限制、Workflow ID 集合及狀態與部門 ID 的組合。重新分析須對每個目標 ID 恰好回傳一次歸屬，不可新增或遺漏 ID，也不能修改名稱與描述。
+- 報告分析只允許以 Workflow 名稱、描述和 GlobalMemory 作歸屬判斷；UserDoc 僅用於首次 Workflow 拆解及相依關係推導。
+- 首次拆解的內部 AI 輸出為 `{ workflows: [{ key, name, description, dependsOnKeys }] }`。key 是該次結果內唯一且非空的暫時字串（最多 200 字元），dependsOnKeys 是前置項目的 key 陣列，不是公開 API 的 UUID。後端驗證參照存在、無重複／自我相依／循環後，配置正式 Workflow UUID，將 dependsOnKeys 映射成 dependsOnWorkflowIds；完成歸屬分析後，所有工作、關聯、ReportDiff 與任務成功狀態一次提交。首次分析重試不能留下部分工作或關聯。
+- AI 每個歸屬結果必須明確包含 assignmentStatus（僅 ASSIGNED 或 UNKNOWN）及 departmentId，assignmentSource 由後端設為 AI。UNKNOWN 必須搭配 null，ASSIGNED 必須搭配有效部門 ID；不能只回 null 或用 UNASSIGNED 表示不知道。AI 結果須先驗證結構、欄位限制、Workflow ID 集合及狀態與部門 ID 的組合。重新分析須對每個目標 ID 恰好回傳一次歸屬，不可新增或遺漏 ID，也不能修改名稱、描述與 dependsOnWorkflowIds。
 - UNKNOWN 是成功的業務結果；即使所有 Workflow 都是 UNKNOWN，Job 仍可為 SUCCEEDED，不觸發自動重試。API 呼叫失敗、逾時或格式錯誤仍按失敗處理，不轉成 UNKNOWN。
 - 每次 Job 嘗試總執行上限為 120 秒；超時中止該次嘗試。總共最多嘗試 3 次（首次加 2 次重試），等待時間分別為 5 秒及 30 秒。供應商要求更長等待時採較長值。
 - 連線失敗、逾時、供應商限流／5xx、AI 輸出驗證失敗及回饋版本衝突會自動重試；金鑰無效、權限不足及其他不可恢復的請求錯誤直接 FAILED。
@@ -175,9 +201,9 @@ ReportDiff 僅能新增及讀取。Job 另外保存每次執行嘗試的批次�
 | 建立專案、提交需求並啟動首次 AI 分析 | `POST /projects` | `{ name, userDoc: { content } }` | 202，`{ project, report, job }`；未初始化記憶為 409 `GLOBAL_MEMORY_NOT_INITIALIZED`。 |
 | 查詢專案列表 | `GET /projects` | 可選 query status（OPEN 或 CLOSED）與分頁。 | 200，Project 分頁列表。 |
 | 查詢專案詳情、需求內容與任務關聯 | `GET /projects/{projectId}` | 無。 | 200，`{ project, userDoc, reportVersion, activeAnalysisJobId, feedbackJobId }`；無相關任務時 ID 為 null。 |
-| 查詢報告及所有工作任務的歸屬結果 | `GET /projects/{projectId}/report` | 無。 | 200，Report 欄位加 workflows 陣列。 |
-| 在指定專案中手動新增工作任務 | `POST /workflows` | `{ projectId, name, description, assignmentStatus?, departmentId?, expectedReportVersion, reason? }`；projectId 必填，departmentId 可省略或為 null。 | 201，`{ workflow, reportVersion }`。 |
-| 修改工作任務內容或部門歸屬 | `PATCH /workflows/{workflowId}` | `{ expectedReportVersion, name?, description?, assignmentStatus?, departmentId?, reason? }`；至少一個 Workflow 欄位。 | 200，`{ workflow, reportVersion }`；省略表示不變，歸屬欄位依下方寫入規則處理。 |
+| 查詢報告、工作相依順序及歸屬結果 | `GET /projects/{projectId}/report` | 無。 | 200，Report 欄位加 workflows 陣列。 |
+| 在指定專案中手動新增工作任務及前置相依 | `POST /projects/{projectId}/workflows` | `{ name, description, dependsOnWorkflowIds?, assignmentStatus?, departmentId?, expectedReportVersion, reason? }`；projectId 由路徑提供，departmentId 可省略或為 null。 | 201，`{ workflow, reportVersion }`。 |
+| 修改工作任務內容、前置相依或部門歸屬 | `PATCH /workflows/{workflowId}` | `{ expectedReportVersion, name?, description?, dependsOnWorkflowIds?, assignmentStatus?, departmentId?, reason? }`；至少一個 Workflow 欄位。 | 200，`{ workflow, reportVersion }`；省略表示不變，歸屬欄位依下方寫入規則處理。 |
 | 刪除工作任務並保留變更紀錄 | `DELETE /workflows/{workflowId}` | 必填 query expectedReportVersion，可選 reason，無 body。 | 200，`{ deletedWorkflowId, reportVersion }`。 |
 | 啟動全部或僅未歸屬項目的 AI 歸屬分析（後者含「不知道」） | `POST /projects/{projectId}/analyses` | `{ type, expectedReportVersion, reason? }`；type 為 ALL_REANALYZE / UNASSIGNED_ANALYZE，前者 reason 必填。 | 202，`{ job, reportVersion }`；全部重新分析回傳清除後版本。 |
 | 查詢報告的變更歷程 | `GET /projects/{projectId}/report-diffs` | 分頁。 | 200，ReportDiff 分頁列表。 |
@@ -187,10 +213,18 @@ ReportDiff 僅能新增及讀取。Job 另外保存每次執行嘗試的批次�
 
 Workflow 資源關聯與寫入規則：
 
-- 建立時由 body 的 projectId 找到專案的唯一 Report，後端設定 workflow.reportId；專案不存在回傳 404。
+- 建立時由路徑的 projectId 找到專案的唯一 Report，後端設定 workflow.reportId；body 不接受 projectId 或 reportId，傳入時回傳 400 INVALID_REQUEST。專案不存在回傳 404。
 - 修改及刪除以全域唯一 workflowId 定位，後端透過 Workflow → Report → Project 取得所屬專案。expectedReportVersion 一律比對該 Report，並在同一交易內執行原有專案鎖定、結案及進行中任務檢查。
 - PATCH 不接受 projectId 或 reportId，不允許搬移 Workflow；傳入時回傳 400 INVALID_REQUEST。Workflow 不存在或已刪除時，PATCH / DELETE 回傳 404。
-- 專案內的 Workflow 集合仍由 `GET /projects/{projectId}/report` 的 workflows 取得。Workflow 寫入僅提供上表頂層路徑，不另提供舊巢狀路徑作為別名。
+- 專案內的 Workflow 集合仍由 `GET /projects/{projectId}/report` 的 workflows 取得。建立使用專案下的三層 collection 路徑；修改及刪除使用頂層 `/workflows/{workflowId}`，不另提供路徑別名。
+
+Workflow 相依寫入規則：
+
+- POST 可省略 dependsOnWorkflowIds，預設為 `[]`；提供時僅可參照該 Report 已存在的工作。
+- PATCH 省略 dependsOnWorkflowIds 表示不變；提供陣列表示完整替換前置集合，`[]` 清除所有前置相依，null 不合法。僅傳此欄位與 expectedReportVersion 即可修改相依。
+- 陣列最多 199 個不同 UUID。格式、null、重複 ID、自己、不存在／已刪除／不同 Report 的參照，均回傳 400 `INVALID_WORKFLOW_DEPENDENCY`。
+- 變更會造成循環時回傳 409 `WORKFLOW_DEPENDENCY_CYCLE`。檢查的是完整 Report 套用本次變更後的圖，不能只檢查當前工作是否直接引用自己。
+- 相依編輯與其他 Workflow 編輯採相同的版本、分析中鎖定及結案限制；不新增相依專用端點。成功回應中的 Workflow 含最新 dependsOnWorkflowIds；前端需重新讀取 Report 取得更新後的完整排序。
 
 Workflow 歸屬寫入規則：
 
@@ -229,6 +263,19 @@ project、report、workflow、job、feedbackJob 使用第 2 節對應模型的�
 }
 ```
 
+修改「退款撥款」的前置工作為「退款審核」及「帳戶驗證」（PATCH `/workflows/{workflowId}`；UUID 為既有工作 ID 的範例）：
+
+```json
+{
+  "expectedReportVersion": 4,
+  "dependsOnWorkflowIds": [
+    "00000000-0000-4000-8000-000000000002",
+    "00000000-0000-4000-8000-000000000003"
+  ],
+  "reason": "撥款前須完成審核及帳戶驗證"
+}
+```
+
 ### 錯誤格式
 
 ```json
@@ -249,8 +296,9 @@ project、report、workflow、job、feedbackJob 使用第 2 節對應模型的�
 | HTTP 狀態 | 使用情境 |
 |---|---|
 | 400 | `INVALID_REQUEST`：JSON、enum、UUID、必填欄位、字數、分頁、不存在的部門 ID、歸屬狀態與部門 ID 不一致或缺少冪等 key 等驗證失敗。 |
+| 400 | `INVALID_WORKFLOW_DEPENDENCY`：相依陣列格式、數量或 ID 參照不合法。 |
 | 404 | `RESOURCE_NOT_FOUND`：資源不存在或不屬於指定專案。 |
-| 409 | 狀態衝突，除前述代碼外，包含 `INITIAL_ANALYSIS_REQUIRED`、`PROJECT_CLOSED`、`PROJECT_BUSY`、`REPORT_VERSION_CONFLICT`、`WORKFLOW_LIMIT_REACHED`、`JOB_NOT_RETRYABLE`、`STALE_JOB_INPUT`。 |
+| 409 | 狀態衝突，除前述代碼外，包含 `INITIAL_ANALYSIS_REQUIRED`、`PROJECT_CLOSED`、`PROJECT_BUSY`、`REPORT_VERSION_CONFLICT`、`WORKFLOW_LIMIT_REACHED`、`JOB_NOT_RETRYABLE`、`STALE_JOB_INPUT`、`WORKFLOW_DEPENDENCY_CYCLE`、`WORKFLOW_HAS_DEPENDENTS`。 |
 | 413 | `PAYLOAD_TOO_LARGE`：請求 body 超過限制。 |
 | 500 | `INTERNAL_ERROR`：資料庫交易失敗等未預期錯誤，不回傳堆疊或機密。 |
 
@@ -283,7 +331,14 @@ AI 在 202 之後的失敗由 Job 的 error 回報，不改寫原 HTTP 回應。
 14. AI 無法區分候選部門或沒有適合部門時回傳 UNKNOWN，不硬分類；全部結果為 UNKNOWN 仍為 SUCCEEDED，不自動重試。
 15. 手動標記 UNKNOWN、指定部門及清除判定，回傳的狀態／部門／來源組合正確，ReportDiff 包含狀態轉換；不合法組合回傳 400。
 16. 含 UNKNOWN 的報告可由單人結案；回饋不將 UNKNOWN 當成已確認的部門歸屬。技術錯誤不偽裝成 UNKNOWN。
-17. 所有 API 資源路徑扣除 `/api/v1` 後最多三層；POST `/workflows` 透過 body 的 projectId 建立關聯，PATCH / DELETE `/workflows/{workflowId}` 正確檢查所屬專案及 Report 版本，不能藉由頂層路徑繞過結案或分析中的限制。
+17. 所有 API 資源路徑扣除 `/api/v1` 後最多三層；POST `/projects/{projectId}/workflows` 透過路徑的 projectId 建立關聯，PATCH / DELETE `/workflows/{workflowId}` 正確檢查所屬專案及 Report 版本，不能藉由頂層路徑繞過結案或分析中的限制。
+
+18. 首次 AI 拆解將需求中的先後關係轉成正式 Workflow ID 相依；AI 暫時 key 不出現在公開 Report，非法參照或循環視為 AI_INVALID_OUTPUT，整批不寫入並按規則重試。
+19. A → B、A → C、B → D、C → D 的 Report 回應中 A 在 B/C 前，D 在 B/C 後，B/C 無相互相依；沒有相依的工作可獨立呈現。相同資料每次讀取排序一致。
+20. POST／PATCH 可設定多個前置工作，PATCH 省略保留、空陣列清除；只改 ID 陣列順序不新增 ReportDiff。只修改相依會記錄 before / after 並遞增版本。
+21. 自我相依、跨專案、不存在或重複 ID 回傳 400；直接及間接循環回傳 409；被拒絕的操作不改動資料或版本。並行反向相依修改不能共同提交出循環。
+22. 刪除仍被依賴的工作回傳 409 與 dependentWorkflowIds，保留原圖；先解除後續工作的參照後可刪除，刪除快照保留該工作原有前置 ID。
+23. 全部及未歸屬分析均保留 dependsOnWorkflowIds；UNKNOWN 工作仍可具有相依。結案／分析中的相依編輯遭拒，報告結案不要求實際執行完所有工作。
 
 ## 10. 使用者後續提供的資料
 
