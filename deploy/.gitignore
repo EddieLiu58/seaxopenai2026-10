@@ -1,0 +1,8 @@
+.env
+.runtime/
+.smoke.env
+.smoke-url
+state/
+backups/
+__pycache__/
+**/__pycache__/

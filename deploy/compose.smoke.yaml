@@ -1,0 +1,8 @@
+# A disposable HTTP origin to verify infrastructure before the app is ready.
+services:
+  backend:
+    image: seax-poc-smoke:local
+    build:
+      context: ./smoke
+    environment:
+      HEALTHCHECK_PATH: /readyz

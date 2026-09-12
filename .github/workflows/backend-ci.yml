@@ -1,0 +1,71 @@
+name: Backend CI
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+    branches: [master, main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: backend-ci-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  infra:
+    name: infra
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+      - name: Deployment agent regression tests
+        run: python3 -m unittest discover -s deploy/tests -v
+      - name: Validate Compose
+        env:
+          DATABASE_PASSWORD: ci-config-only
+        run: |
+          docker compose -p seax-ci-config -f deploy/compose.yaml config --quiet
+          docker compose -p seax-ci-config -f deploy/compose.yaml -f deploy/compose.smoke.yaml config --quiet
+          docker compose -p seax-ci-config -f deploy/compose.ci.yaml config --quiet
+      - name: Build infrastructure origin
+        run: docker build -t seax-poc-smoke:local deploy/smoke
+      - name: Smoke test Compose services
+        env:
+          DATABASE_PASSWORD: ci-smoke-only
+          HOST_PORT: '18080'
+        run: |
+          docker compose -p seax-ci-smoke -f deploy/compose.yaml -f deploy/compose.smoke.yaml up -d --no-build --wait --wait-timeout 90 postgres backend
+          curl --fail --silent --show-error http://127.0.0.1:18080/readyz
+      - name: Stop CI smoke services
+        if: always()
+        env:
+          DATABASE_PASSWORD: ci-smoke-only
+          HOST_PORT: '18080'
+        run: docker compose -p seax-ci-smoke -f deploy/compose.yaml -f deploy/compose.smoke.yaml stop backend postgres
+
+  backend:
+    # The local agent requires this exact job name AND overall workflow success.
+    name: backend
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+      - name: Require deployable backend
+        run: |
+          test -f backend/gradlew
+          test -f backend/build.gradle
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
+        with:
+          distribution: temurin
+          java-version: '26'
+      - name: Test and package (isolated PostgreSQL, stub AI)
+        run: bash deploy/scripts/verify.sh
+      - name: Build application image
+        run: docker build -t "seax-backend:${GITHUB_SHA}" backend

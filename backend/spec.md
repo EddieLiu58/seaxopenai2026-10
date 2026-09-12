@@ -309,7 +309,7 @@ AI 在 202 之後的失敗由 Job 的 error 回報，不改寫原 HTTP 回應。
 - 技術方向沿用 Java 26、Spring Boot 4、Gradle、Swagger / OpenAPI、OpenAI API、PostgreSQL。實作前確認並固定 JDK、Spring Boot、Gradle 及 OpenAPI 整合套件的相容版本，本文件不視為已完成相容性驗證。
 - PostgreSQL 使用 Docker Compose 啟動；後端以單一 Spring Boot 程序提供 API 及資料庫背景 worker。資料庫使用持久化 volume 與版本化 migration。
 - 必要設定：`DATABASE_URL`（JDBC URL）、`DATABASE_USERNAME`、`DATABASE_PASSWORD`、`OPENAI_API_KEY`、`OPENAI_MODEL`；`PORT` 預設 8080、`CORS_ALLOWED_ORIGINS` 指定前端來源。
-- 金鑰由環境變數提供。AI 模型以設定選擇，本文件不固定特定模型或 SDK 版本。
+- 本 POC 依使用者決定，將提供的 API key 直接放入 `application.properties`，並以 `gpt-5.5` 作為預設模型。`OPENAI_API_KEY` 與 `OPENAI_MODEL` 環境變數仍可覆寫設定；模型 ID 支援 Responses API 與 Structured Outputs，參考 [OpenAI 官方模型文件](https://developers.openai.com/api/docs/models/gpt-5.5)。
 - 實作交付需提供 Gradle Wrapper、Compose 設定、環境變數範例及 README，列出啟動資料庫、執行 migration、啟動後端及初始化 GlobalMemory 的步驟；OpenAPI 需覆蓋本文件所有端點、schema 與錯誤。
 
 ## 9. 最小驗收案例

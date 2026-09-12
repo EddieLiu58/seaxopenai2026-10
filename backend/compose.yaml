@@ -1,0 +1,18 @@
+services:
+  postgres:
+    image: postgres:17.6
+    environment:
+      POSTGRES_DB: seax
+      POSTGRES_USER: seax
+      POSTGRES_PASSWORD: ${DATABASE_PASSWORD:-seax}
+    ports:
+      - "127.0.0.1:${DATABASE_PORT:-5432}:5432"
+    volumes:
+      - seax-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U seax -d seax"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+volumes:
+  seax-postgres:
