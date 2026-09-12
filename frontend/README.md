@@ -19,8 +19,9 @@ npm run dev
 npm run lint
 npm run typecheck
 npm run build
-npm start
 ```
+
+`npm run build` 會產生 Cloudflare Pages 要部署的 `out/` 目錄。若要在本機預覽靜態輸出，可執行 `npm run preview`。
 
 ## 修改位置
 
@@ -34,6 +35,21 @@ npm start
 Seax Studio 與作品皆為可替換的概念內容。本版範圍為前端，不需環境變數或外部服務。
 
 技術依據：https://nextjs.org/docs/app/getting-started/installation
+
+## 部署到 Cloudflare Pages
+
+本專案使用 Next.js Static HTML Export，適合目前的純前端內容網站。
+
+在 Cloudflare Dashboard 依序選擇 Workers & Pages → Create application → Pages → Import an existing Git repository，連接 GitHub repository 後使用以下設定：
+
+| 設定 | 值 |
+| --- | --- |
+| Framework preset | `Next.js (Static HTML Export)` |
+| Production branch | `main` |
+| Build command | `npm run build` |
+| Build output directory | `out` |
+
+每次推送到 `main` 會觸發正式部署，Pull Request 則可產生預覽部署。Cloudflare 官方指南：[Deploy a static Next.js site](https://developers.cloudflare.com/pages/framework-guides/nextjs/deploy-a-static-nextjs-site/)。
 
 ## 此環境的建置設定
 
