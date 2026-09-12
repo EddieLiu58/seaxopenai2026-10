@@ -3440,6 +3440,7 @@ label textarea {
 .use-case-card h3, .use-case-feedback label { font-size: 13px; font-weight: 600; color: var(--foreground); }
 .use-case-tags { display: flex; flex-wrap: wrap; gap: 8px; list-style: none; padding: 0; margin: 10px 0 0; }
 .use-case-tags li { background: var(--secondary); color: var(--secondary-foreground); padding: 6px 12px; border-radius: 6px; font-size: 13px; overflow-wrap: anywhere; }
+.assignment-source { margin-top: 10px; color: var(--text-secondary); font-size: 12px; line-height: 1.6; }
 .use-case-description { margin-top: 10px; font-size: 15px; line-height: 1.9; white-space: pre-wrap; overflow-wrap: anywhere; }
 .use-case-feedback { display: grid; gap: 10px; border-top: 1px solid var(--line); padding-top: 22px; }
 .use-case-feedback textarea { min-height: 112px; font-size: 15px; line-height: 1.8; resize: vertical; }
