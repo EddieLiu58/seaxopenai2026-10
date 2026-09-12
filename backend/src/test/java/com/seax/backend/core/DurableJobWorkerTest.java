@@ -156,6 +156,7 @@ class DurableJobWorkerTest {
                     assignment.put("workflowId", workflows.getFirst().get("id"));
                     assignment.put("assignmentStatus", "UNKNOWN");
                     assignment.put("departmentId", null);
+                    assignment.put("assignmentReason", "Insufficient evidence to select a department.");
                     return Map.of("assignments", List.of(assignment));
                 };
         try (var worker =

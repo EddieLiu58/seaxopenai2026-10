@@ -221,7 +221,7 @@ public class OpenAiClient implements AiClient {
                                                                     "type",
                                                                     List.of("string", "null")),
                                                             "assignmentReason",
-                                                            assignmentReason))))));
+                                                            assignmentReason)))));
             case "feedback" ->
                     object(
                             Map.of(

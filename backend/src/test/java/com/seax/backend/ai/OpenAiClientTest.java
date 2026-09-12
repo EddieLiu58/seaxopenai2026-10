@@ -77,9 +77,9 @@ class OpenAiClientTest {
         Map<?, ?> schema = (Map<?, ?>) format.get("schema");
         Map<?, ?> assignments = (Map<?, ?>) ((Map<?, ?>) schema.get("properties")).get("assignments");
         Map<?, ?> item = (Map<?, ?>) assignments.get("items");
-        Map<?, ?> assignmentReason =
-                (Map<?, ?>) ((Map<?, ?>) item.get("properties")).get("assignmentReason");
-        assertThat((List<?>) item.get("required")).contains("assignmentReason");
+        Map<String, Object> assignmentReason =
+                (Map<String, Object>) ((Map<?, ?>) item.get("properties")).get("assignmentReason");
+        assertThat((List<Object>) item.get("required")).contains("assignmentReason");
         assertThat(assignmentReason)
                 .containsEntry("type", "string")
                 .containsEntry("minLength", 1)
