@@ -62,7 +62,7 @@ API 與背景 worker 在同一個 Spring Boot 程序。任務、輸入快照、�
 | `DATABASE_PORT` | Compose 對本機開放的 port；改動時同步更新 JDBC URL |
 | `OPENAI_API_KEY` / `OPENAI_MODEL` | 覆寫 POC 設定檔內的金鑰與預設模型 `gpt-5.5` |
 | `PORT` | API port，預設 8080 |
-| `CORS_ALLOWED_ORIGINS` | 允許的前端來源，以逗號分隔，預設 `http://localhost:3000` |
+| `CORS_ALLOWED_ORIGINS` | 允許的前端來源，以逗號分隔，預設僅 `https://system-boundary.pages.dev`；若設定此環境變數，會覆寫預設白名單 |
 | `SEED_GLOBAL_MEMORY` | 是否在空資料庫載入組織範例，預設 true |
 | `WORKER_ENABLED` | 是否自動執行任務，預設 true |
 | `OPENAI_BASE_URL` | 相容 Responses API 的 base URL，預設 `https://api.openai.com/v1` |
