@@ -333,14 +333,17 @@ export function ProjectReport({
                           : "未歸屬"}
                       </li>
                     )}
-                    {workflow.assignmentSource && (
-                      <li>
+                  </ul>
+                  {workflow.assignmentSource && (
+                    <p className="assignment-source">
+                      歸屬來源：
+                      <span>
                         {workflow.assignmentSource === "AI"
                           ? "AI 建議"
                           : "人工指定"}
-                      </li>
-                    )}
-                  </ul>
+                      </span>
+                    </p>
+                  )}
                 </div>
                 <div>
                   <h3>流程描述</h3>
