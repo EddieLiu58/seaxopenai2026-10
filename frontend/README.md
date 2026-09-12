@@ -23,6 +23,12 @@ npm run build
 
 `npm run build` 會產生 Cloudflare Pages 要部署的 `out/` 目錄。若要在本機預覽靜態輸出，可執行 `npm run preview`。
 
+本機 direct upload 到 Cloudflare Pages：
+
+```bash
+npm run deploy:cloudflare
+```
+
 ## 修改位置
 
 - `src/app/page.tsx`：首頁結構與文案
@@ -49,7 +55,7 @@ Seax Studio 與作品皆為可替換的概念內容。本版範圍為前端，�
 | Build command | `npm run build` |
 | Build output directory | `out` |
 
-每次推送到 `main` 會觸發正式部署，Pull Request 則可產生預覽部署。Cloudflare 官方指南：[Deploy a static Next.js site](https://developers.cloudflare.com/pages/framework-guides/nextjs/deploy-a-static-nextjs-site/)。
+Cloudflare 官方指南：[Direct Upload](https://developers.cloudflare.com/pages/get-started/direct-upload/) 與 [Deploy a static Next.js site](https://developers.cloudflare.com/pages/framework-guides/nextjs/deploy-a-static-nextjs-site/)。本專案使用 direct upload，因此每次需要執行 `npm run deploy:cloudflare` 才會重新部署。
 
 ## 此環境的建置設定
 
