@@ -2,8 +2,8 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Seax 工作流程與組織記憶 API",
-    "version": "0.1.0",
-    "description": "JSON 純文字需求、workflow DAG、UNKNOWN 歸屬、單人結案及非同步回饋。字串長度按 Unicode code point；必填文字不得只有空白。所有 POST 須 Idempotency-Key。錯誤代碼與執行規則見 backend/spec.md。"
+    "version": "0.2.0",
+    "description": "GlobalMemory schemaVersion 2：版本化知識、結案案例、scope、證據、UNKNOWN 原因及回饋診斷。POC 沿用 /api/v1；既有外部消費者需同步升級。必填文字不得只有空白。所有 POST 須 Idempotency-Key。Job、交易、重試及結案規則沿用 backend/spec.md；AI_INPUT_TOO_LARGE 不可重試，不以 UNKNOWN 掩蓋技術失敗。"
   },
   "servers": [
     {
@@ -182,6 +182,626 @@
             "required": false
           }
         ]
+      }
+    },
+    "/global-memory/knowledge-items": {
+      "get": {
+        "summary": "查詢有來源及範圍的組織知識",
+        "operationId": "getKnowledgeItemPage_global-memory_knowledge-items",
+        "tags": [
+          "global-memory"
+        ],
+        "responses": {
+          "200": {
+            "description": "查詢有來源及範圍的組織知識",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KnowledgeItemPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "參數或 JSON 不合法",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "資源不存在",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "狀態、版本、相依或冪等衝突",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "JSON body 超過 10 MiB",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "未預期錯誤",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "version",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "required": true
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50
+            },
+            "required": false
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0
+            },
+            "required": false
+          },
+          {
+            "name": "departmentId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": false
+          },
+          {
+            "name": "type",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "FEATURE",
+                "RESPONSIBILITY",
+                "CAPABILITY",
+                "COMMON_RULE",
+                "PROJECT_ARRANGEMENT"
+              ]
+            },
+            "required": false
+          },
+          {
+            "name": "scopeLevel",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "ORGANIZATION",
+                "PROJECT"
+              ]
+            },
+            "required": false
+          },
+          {
+            "name": "projectId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": false
+          }
+        ],
+        "description": "必須指定固定 version，多頁沿用同一版本；limit 預設 50、範圍 1–200，offset 非負。舊版本成員與內容不隨新版本變動。"
+      }
+    },
+    "/global-memory/relationships": {
+      "get": {
+        "summary": "查詢有方向與來源的部門關係",
+        "operationId": "getRelationshipPage_global-memory_relationships",
+        "tags": [
+          "global-memory"
+        ],
+        "responses": {
+          "200": {
+            "description": "查詢有方向與來源的部門關係",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RelationshipPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "參數或 JSON 不合法",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "資源不存在",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "狀態、版本、相依或冪等衝突",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "JSON body 超過 10 MiB",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "未預期錯誤",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "version",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "required": true
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50
+            },
+            "required": false
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0
+            },
+            "required": false
+          },
+          {
+            "name": "departmentId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": false
+          },
+          {
+            "name": "type",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "REPORTS_TO",
+                "UPSTREAM_OF",
+                "COLLABORATES_WITH"
+              ]
+            },
+            "required": false
+          }
+        ],
+        "description": "必須指定固定 version，多頁沿用同一版本；limit 預設 50、範圍 1–200，offset 非負。舊版本成員與內容不隨新版本變動。"
+      }
+    },
+    "/global-memory/experiences": {
+      "get": {
+        "summary": "查詢已納入指定記憶版本的結案案例摘要",
+        "operationId": "getExperiencePage_global-memory_experiences",
+        "tags": [
+          "global-memory"
+        ],
+        "responses": {
+          "200": {
+            "description": "查詢已納入指定記憶版本的結案案例摘要",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExperiencePage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "參數或 JSON 不合法",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "資源不存在",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "狀態、版本、相依或冪等衝突",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "JSON body 超過 10 MiB",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "未預期錯誤",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "version",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "required": true
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50
+            },
+            "required": false
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0
+            },
+            "required": false
+          },
+          {
+            "name": "departmentId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": false
+          },
+          {
+            "name": "projectId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": false
+          }
+        ],
+        "description": "必須指定固定 version，多頁沿用同一版本；limit 預設 50、範圍 1–200，offset 非負。舊版本成員與內容不隨新版本變動。 案例依 closedAt、projectId 降冪；部門篩選只計 ASSIGNED。"
+      }
+    },
+    "/global-memory/experiences/{projectId}": {
+      "get": {
+        "summary": "查詢指定版本的完整結案案例",
+        "operationId": "getExperienceResult_global-memory_experiences_projectId",
+        "tags": [
+          "global-memory"
+        ],
+        "responses": {
+          "200": {
+            "description": "查詢指定版本的完整結案案例",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExperienceResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "參數或 JSON 不合法",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "資源不存在",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "狀態、版本、相依或冪等衝突",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "JSON body 超過 10 MiB",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "未預期錯誤",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "version",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "required": true
+          },
+          {
+            "name": "projectId",
+            "in": "path",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true
+          }
+        ],
+        "description": "不在該版本的案例回傳 404；REPORT_APPROVED 不宣稱工作已執行。"
+      }
+    },
+    "/global-memory/evidence": {
+      "get": {
+        "summary": "查詢可核對的原始來源與摘錄",
+        "operationId": "getEvidencePage_global-memory_evidence",
+        "tags": [
+          "global-memory"
+        ],
+        "responses": {
+          "200": {
+            "description": "查詢可核對的原始來源與摘錄",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EvidencePage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "參數或 JSON 不合法",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "資源不存在",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "狀態、版本、相依或冪等衝突",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "JSON body 超過 10 MiB",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "未預期錯誤",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "version",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "required": true
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50
+            },
+            "required": false
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0
+            },
+            "required": false
+          },
+          {
+            "name": "knowledgeItemId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": false
+          },
+          {
+            "name": "relationshipId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": false
+          },
+          {
+            "name": "projectId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": false
+          }
+        ],
+        "description": "必須指定固定 version，多頁沿用同一版本；limit 預設 50、範圍 1–200，offset 非負。舊版本成員與內容不隨新版本變動。"
       }
     },
     "/projects": {
@@ -543,7 +1163,7 @@
             "required": true
           }
         ],
-        "description": "以 DAG 拓撲排序回傳工作；每一步候選工作依 createdAt、id 升冪。相依 ID 陣列按 UUID 升冪。"
+        "description": "以 DAG 拓撲排序回傳工作；每一步候選工作依 createdAt、id 升冪。相依 ID 陣列按 UUID 升冪。AI 指派的 assignmentReason 會隨 workflow 回傳。"
       }
     },
     "/projects/{projectId}/workflows": {
@@ -636,7 +1256,7 @@
             "description": "永久冪等 key；相同路徑/key/body 回放原成功回應，不同 body 回傳 409。"
           }
         ],
-        "description": "省略歸屬欄位時新增為 UNASSIGNED、修改時保留；只傳 departmentId 則有效 UUID 為 ASSIGNED、null 為 UNASSIGNED。明確 ASSIGNED 須提供 departmentId；UNKNOWN/UNASSIGNED 的 departmentId 須省略或 null。手動判定來源由後端設為 USER。相依須同 Report、無重複、自我或循環。",
+        "description": "省略歸屬欄位時新增為 UNASSIGNED、修改時保留；只傳 departmentId 則有效 UUID 為 ASSIGNED、null 為 UNASSIGNED。明確 ASSIGNED 須提供 departmentId；UNKNOWN/UNASSIGNED 的 departmentId 須省略或 null。手動判定來源由後端設為 USER，並清除既有 AI assignmentReason。相依須同 Report、無重複、自我或循環。",
         "requestBody": {
           "required": true,
           "content": {
@@ -729,7 +1349,7 @@
             "required": true
           }
         ],
-        "description": "省略歸屬欄位時新增為 UNASSIGNED、修改時保留；只傳 departmentId 則有效 UUID 為 ASSIGNED、null 為 UNASSIGNED。明確 ASSIGNED 須提供 departmentId；UNKNOWN/UNASSIGNED 的 departmentId 須省略或 null。手動判定來源由後端設為 USER。相依須同 Report、無重複、自我或循環。 相依省略保留、[] 清空，null 不合法；僅重排不產生差異。",
+        "description": "省略歸屬欄位時新增為 UNASSIGNED、修改時保留；只傳 departmentId 則有效 UUID 為 ASSIGNED、null 為 UNASSIGNED。明確 ASSIGNED 須提供 departmentId；UNKNOWN/UNASSIGNED 的 departmentId 須省略或 null。手動判定來源由後端設為 USER，並清除既有 AI assignmentReason。相依須同 Report、無重複、自我或循環。 相依省略保留、[] 清空，null 不合法；僅重排不產生差異。",
         "requestBody": {
           "required": true,
           "content": {
@@ -1048,6 +1668,119 @@
         ]
       }
     },
+    "/projects/{projectId}/analysis-results": {
+      "get": {
+        "summary": "查詢不可變 AI 歸屬判斷、資訊缺口及引用",
+        "operationId": "getAnalysisRecordPage_projects_projectId_analysis-results",
+        "tags": [
+          "projects"
+        ],
+        "responses": {
+          "200": {
+            "description": "查詢不可變 AI 歸屬判斷、資訊缺口及引用",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnalysisRecordPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "參數或 JSON 不合法",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "資源不存在",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "狀態、版本、相依或冪等衝突",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "JSON body 超過 10 MiB",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "未預期錯誤",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50
+            },
+            "required": false
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0
+            },
+            "required": false
+          },
+          {
+            "name": "jobId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": false
+          },
+          {
+            "name": "projectId",
+            "in": "path",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true
+          }
+        ],
+        "description": "依 reportVersion 升冪。人工改派不修改歷史判斷；過往 explanation 不代表目前人工歸屬理由。"
+      }
+    },
     "/projects/{projectId}/close": {
       "post": {
         "summary": "單人簽核結案並啟動回饋分析",
@@ -1243,6 +1976,89 @@
         ]
       }
     },
+    "/jobs/{jobId}/feedback-result": {
+      "get": {
+        "summary": "查詢成功回饋發布結果及未採納診斷",
+        "operationId": "getFeedbackResult_jobs_jobId_feedback-result",
+        "tags": [
+          "jobs"
+        ],
+        "responses": {
+          "200": {
+            "description": "查詢成功回饋發布結果及未採納診斷",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FeedbackResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "參數或 JSON 不合法",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "資源不存在",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "狀態、版本、相依或冪等衝突",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "JSON body 超過 10 MiB",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "未預期錯誤",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "jobId",
+            "in": "path",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true
+          }
+        ],
+        "description": "FEEDBACK SUCCEEDED 才回傳 200。未成功回 409 FEEDBACK_RESULT_NOT_READY；非 FEEDBACK 回 409 WRONG_JOB_TYPE。不回傳供應商原始錯誤。"
+      }
+    },
     "/jobs/{jobId}/retry": {
       "post": {
         "summary": "手動重試已失敗的 AI 任務",
@@ -1365,12 +2181,21 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 10000
+          },
+          "knowledgeItemIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "uniqueItems": true
           }
         },
         "required": [
           "id",
           "name",
-          "description"
+          "description",
+          "knowledgeItemIds"
         ],
         "additionalProperties": false
       },
@@ -1380,7 +2205,7 @@
           "departments": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/Department"
+              "$ref": "#/components/schemas/InitializeDepartment"
             },
             "minItems": 1,
             "maxItems": 200
@@ -1389,33 +2214,43 @@
             "type": "string",
             "minLength": 0,
             "maxLength": 100000
+          },
+          "relationships": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DepartmentRelationship"
+            }
+          },
+          "knowledgeItems": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/KnowledgeItem"
+            }
+          },
+          "evidence": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Evidence"
+            }
           }
         },
         "required": [
           "departments",
           "relationshipsDescription"
         ],
-        "additionalProperties": false
+        "additionalProperties": false,
+        "description": "Initialization accepts only ORGANIZATION knowledge and INITIAL_INPUT evidence whose pointers resolve in this immutable payload. Missing optional arrays default to empty. Omitted knowledge/evidence are derived from legacy department descriptions; project experiences cannot be supplied."
       },
       "GlobalMemory": {
         "type": "object",
         "properties": {
+          "schemaVersion": {
+            "type": "integer",
+            "const": 2
+          },
           "version": {
             "type": "integer",
             "minimum": 1
-          },
-          "departments": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/Department"
-            },
-            "minItems": 1,
-            "maxItems": 200
-          },
-          "relationshipsDescription": {
-            "type": "string",
-            "minLength": 0,
-            "maxLength": 100000
           },
           "source": {
             "type": "string",
@@ -1438,15 +2273,31 @@
           "createdAt": {
             "type": "string",
             "format": "date-time"
+          },
+          "departments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Department"
+            }
+          },
+          "relationshipsDescription": {
+            "type": "string",
+            "minLength": 0,
+            "maxLength": 100000
+          },
+          "counts": {
+            "$ref": "#/components/schemas/MemoryCounts"
           }
         },
         "required": [
+          "schemaVersion",
           "version",
-          "departments",
-          "relationshipsDescription",
           "source",
           "sourceProjectId",
-          "createdAt"
+          "createdAt",
+          "departments",
+          "relationshipsDescription",
+          "counts"
         ],
         "additionalProperties": false
       },
@@ -1581,6 +2432,18 @@
               }
             ]
           },
+          "assignmentReason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 2000
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "createdAt": {
             "type": "string",
             "format": "date-time"
@@ -1599,6 +2462,7 @@
           "assignmentStatus",
           "departmentId",
           "assignmentSource",
+          "assignmentReason",
           "createdAt",
           "updatedAt"
         ],
@@ -1659,7 +2523,8 @@
               "AI_REQUEST_REJECTED",
               "MEMORY_VERSION_CONFLICT",
               "WORKER_INTERRUPTED",
-              "INTERNAL_ERROR"
+              "INTERNAL_ERROR",
+              "AI_INPUT_TOO_LARGE"
             ]
           },
           "message": {
@@ -1782,6 +2647,10 @@
                   "reportVersion": {
                     "type": "integer",
                     "minimum": 0
+                  },
+                  "analysisId": {
+                    "type": "string",
+                    "format": "uuid"
                   }
                 },
                 "required": [
@@ -1851,6 +2720,7 @@
                 "assignmentStatus",
                 "departmentId",
                 "assignmentSource",
+                "assignmentReason",
                 "createdAt",
                 "updatedAt"
               ]
@@ -2484,6 +3354,1640 @@
           }
         },
         "required": [
+          "items",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "additionalProperties": false
+      },
+      "InitializeDepartment": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "description": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 10000
+          }
+        },
+        "required": [
+          "name",
+          "description"
+        ],
+        "additionalProperties": false
+      },
+      "Scope": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "level": {
+                "type": "string",
+                "const": "ORGANIZATION"
+              },
+              "projectId": {
+                "type": "null"
+              },
+              "conditions": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 2000
+                },
+                "maxItems": 50
+              }
+            },
+            "required": [
+              "level",
+              "projectId",
+              "conditions"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "level": {
+                "type": "string",
+                "const": "PROJECT"
+              },
+              "projectId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "conditions": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 2000
+                },
+                "maxItems": 50
+              }
+            },
+            "required": [
+              "level",
+              "projectId",
+              "conditions"
+            ],
+            "additionalProperties": false
+          }
+        ]
+      },
+      "KnowledgeItem": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "FEATURE",
+              "RESPONSIBILITY",
+              "CAPABILITY",
+              "COMMON_RULE",
+              "PROJECT_ARRANGEMENT"
+            ]
+          },
+          "statement": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 10000
+          },
+          "departmentIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "uniqueItems": true
+          },
+          "scope": {
+            "$ref": "#/components/schemas/Scope"
+          },
+          "evidenceIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "minItems": 1,
+            "uniqueItems": true
+          }
+        },
+        "required": [
+          "id",
+          "type",
+          "statement",
+          "departmentIds",
+          "scope",
+          "evidenceIds"
+        ],
+        "additionalProperties": false
+      },
+      "DepartmentRelationship": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "REPORTS_TO",
+              "UPSTREAM_OF",
+              "COLLABORATES_WITH"
+            ]
+          },
+          "fromDepartmentId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "toDepartmentId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "description": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 10000
+          },
+          "exchangedItems": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 2000
+            },
+            "maxItems": 50
+          },
+          "scope": {
+            "$ref": "#/components/schemas/Scope"
+          },
+          "evidenceIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "minItems": 1,
+            "uniqueItems": true
+          }
+        },
+        "required": [
+          "id",
+          "type",
+          "fromDepartmentId",
+          "toDepartmentId",
+          "description",
+          "exchangedItems",
+          "scope",
+          "evidenceIds"
+        ],
+        "additionalProperties": false
+      },
+      "Evidence": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "sourceType": {
+            "type": "string",
+            "enum": [
+              "INITIAL_INPUT",
+              "CLOSED_REPORT",
+              "REPORT_DIFF"
+            ]
+          },
+          "sourceProjectId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reportId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reportVersion": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "workflowId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reportDiffId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "sourcePath": {
+            "type": "string",
+            "minLength": 0
+          },
+          "excerpt": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000
+          }
+        },
+        "required": [
+          "id",
+          "sourceType",
+          "sourceProjectId",
+          "reportId",
+          "reportVersion",
+          "workflowId",
+          "reportDiffId",
+          "sourcePath",
+          "excerpt"
+        ],
+        "additionalProperties": false
+      },
+      "MemoryCounts": {
+        "type": "object",
+        "properties": {
+          "relationships": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "knowledgeItems": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "projectExperiences": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "evidence": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "relationships",
+          "knowledgeItems",
+          "projectExperiences",
+          "evidence"
+        ],
+        "additionalProperties": false
+      },
+      "WorkflowExperience": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "reportId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "description": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 10000
+          },
+          "dependsOnWorkflowIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "maxItems": 199,
+            "uniqueItems": true
+          },
+          "assignmentStatus": {
+            "type": "string",
+            "enum": [
+              "UNASSIGNED",
+              "ASSIGNED",
+              "UNKNOWN"
+            ]
+          },
+          "departmentId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "assignmentSource": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "AI",
+                  "USER"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "assignmentReason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 2000
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "evidenceIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "uniqueItems": true
+          }
+        },
+        "required": [
+          "id",
+          "reportId",
+          "name",
+          "description",
+          "dependsOnWorkflowIds",
+          "assignmentStatus",
+          "departmentId",
+          "assignmentSource",
+          "assignmentReason",
+          "createdAt",
+          "updatedAt",
+          "evidenceIds"
+        ],
+        "additionalProperties": false
+      },
+      "ProjectExperience": {
+        "type": "object",
+        "properties": {
+          "projectId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "projectName": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "reportId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "reportVersion": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "closedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "experienceMeaning": {
+            "type": "string",
+            "const": "REPORT_APPROVED"
+          },
+          "workflows": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WorkflowExperience"
+            },
+            "maxItems": 200
+          },
+          "reportDiffIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "uniqueItems": true
+          }
+        },
+        "required": [
+          "projectId",
+          "projectName",
+          "reportId",
+          "reportVersion",
+          "closedAt",
+          "experienceMeaning",
+          "workflows",
+          "reportDiffIds"
+        ],
+        "additionalProperties": false
+      },
+      "ExperienceSummary": {
+        "type": "object",
+        "properties": {
+          "projectId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "projectName": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "reportId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "reportVersion": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "closedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "experienceMeaning": {
+            "type": "string",
+            "const": "REPORT_APPROVED"
+          },
+          "workflowCount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "departmentIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "uniqueItems": true
+          }
+        },
+        "required": [
+          "projectId",
+          "projectName",
+          "reportId",
+          "reportVersion",
+          "closedAt",
+          "experienceMeaning",
+          "workflowCount",
+          "departmentIds"
+        ],
+        "additionalProperties": false
+      },
+      "ExperienceResult": {
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "experience": {
+            "$ref": "#/components/schemas/ProjectExperience"
+          }
+        },
+        "required": [
+          "version",
+          "experience"
+        ],
+        "additionalProperties": false
+      },
+      "GlobalMemorySnapshot": {
+        "type": "object",
+        "properties": {
+          "schemaVersion": {
+            "type": "integer",
+            "const": 2
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "INITIAL",
+              "FEEDBACK"
+            ]
+          },
+          "sourceProjectId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "departments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Department"
+            }
+          },
+          "relationshipsDescription": {
+            "type": "string",
+            "minLength": 0,
+            "maxLength": 100000
+          },
+          "relationships": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DepartmentRelationship"
+            }
+          },
+          "knowledgeItems": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/KnowledgeItem"
+            }
+          },
+          "projectExperiences": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProjectExperience"
+            }
+          },
+          "evidence": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Evidence"
+            }
+          }
+        },
+        "required": [
+          "schemaVersion",
+          "version",
+          "source",
+          "sourceProjectId",
+          "createdAt",
+          "departments",
+          "relationshipsDescription",
+          "relationships",
+          "knowledgeItems",
+          "projectExperiences",
+          "evidence"
+        ],
+        "additionalProperties": false
+      },
+      "MemoryContext": {
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "departments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Department"
+            }
+          },
+          "knowledgeItems": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/KnowledgeItem"
+            }
+          },
+          "relationships": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DepartmentRelationship"
+            }
+          },
+          "relationshipsDescription": {
+            "type": "string",
+            "minLength": 0,
+            "maxLength": 100000
+          },
+          "projectExperiences": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProjectExperience"
+            }
+          },
+          "evidence": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Evidence"
+            }
+          }
+        },
+        "required": [
+          "version",
+          "departments",
+          "knowledgeItems",
+          "relationships",
+          "relationshipsDescription",
+          "projectExperiences",
+          "evidence"
+        ],
+        "additionalProperties": false
+      },
+      "AssignmentInput": {
+        "type": "object",
+        "properties": {
+          "projectId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "workflows": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "name": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "description": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 10000
+                }
+              },
+              "required": [
+                "id",
+                "name",
+                "description"
+              ],
+              "additionalProperties": false
+            },
+            "maxItems": 200
+          },
+          "memoryContext": {
+            "$ref": "#/components/schemas/MemoryContext"
+          }
+        },
+        "required": [
+          "workflows",
+          "memoryContext"
+        ],
+        "additionalProperties": false
+      },
+      "SourceDocument": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "sourceType": {
+            "type": "string",
+            "enum": [
+              "CLOSED_REPORT",
+              "REPORT_DIFF"
+            ]
+          },
+          "projectId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "reportId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "reportVersion": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "reportDiffId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "payloadPointer": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "id",
+          "sourceType",
+          "projectId",
+          "reportId",
+          "reportVersion",
+          "reportDiffId",
+          "payloadPointer"
+        ],
+        "additionalProperties": false
+      },
+      "FeedbackInput": {
+        "type": "object",
+        "properties": {
+          "contractVersion": {
+            "type": "integer",
+            "const": 2
+          },
+          "project": {
+            "$ref": "#/components/schemas/Project"
+          },
+          "finalReport": {
+            "$ref": "#/components/schemas/Report"
+          },
+          "reportDiffs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReportDiff"
+            }
+          },
+          "globalMemory": {
+            "$ref": "#/components/schemas/GlobalMemorySnapshot"
+          },
+          "sourceDocuments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SourceDocument"
+            }
+          }
+        },
+        "required": [
+          "contractVersion",
+          "project",
+          "finalReport",
+          "reportDiffs",
+          "globalMemory",
+          "sourceDocuments"
+        ],
+        "additionalProperties": false
+      },
+      "AssignmentDecision": {
+        "type": "object",
+        "properties": {
+          "workflowId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "assignmentStatus": {
+            "type": "string",
+            "enum": [
+              "ASSIGNED",
+              "UNKNOWN"
+            ]
+          },
+          "departmentId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "decisionCode": {
+            "type": "string",
+            "enum": [
+              "MATCHED_RESPONSIBILITY",
+              "INSUFFICIENT_WORKFLOW_DETAIL",
+              "CONFLICTING_EVIDENCE",
+              "MULTIPLE_PLAUSIBLE_DEPARTMENTS",
+              "NO_RESPONSIBLE_DEPARTMENT",
+              "INSUFFICIENT_ORGANIZATION_KNOWLEDGE"
+            ]
+          },
+          "explanation": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000
+          },
+          "candidateDepartmentIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "uniqueItems": true
+          },
+          "missingInformation": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 2000
+            }
+          },
+          "knowledgeItemIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "uniqueItems": true
+          },
+          "evidenceIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "uniqueItems": true
+          }
+        },
+        "required": [
+          "workflowId",
+          "assignmentStatus",
+          "departmentId",
+          "decisionCode",
+          "explanation",
+          "candidateDepartmentIds",
+          "missingInformation",
+          "knowledgeItemIds",
+          "evidenceIds"
+        ],
+        "additionalProperties": false,
+        "description": "ASSIGNED requires MATCHED_RESPONSIBILITY, a unique existing department, only that candidate, empty missingInformation and positive responsibility evidence. UNKNOWN requires null departmentId, an UNKNOWN reason and actionable missingInformation. Multiple candidates require at least two department IDs; conflicting evidence cites both sides. All references belong to the fixed actual input."
+      },
+      "AssignmentOutput": {
+        "type": "object",
+        "properties": {
+          "assignments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AssignmentDecision"
+            },
+            "maxItems": 200
+          }
+        },
+        "required": [
+          "assignments"
+        ],
+        "additionalProperties": false
+      },
+      "AnalysisRecord": {
+        "type": "object",
+        "properties": {
+          "analysisId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "jobId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "reportVersion": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "globalMemoryVersion": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "results": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AssignmentDecision"
+            }
+          }
+        },
+        "required": [
+          "analysisId",
+          "jobId",
+          "reportVersion",
+          "globalMemoryVersion",
+          "results"
+        ],
+        "additionalProperties": false
+      },
+      "AnalysisRecordPage": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AnalysisRecord"
+            }
+          },
+          "total": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 200
+          },
+          "offset": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "additionalProperties": false
+      },
+      "ExistingEvidenceRef": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "const": "EXISTING"
+          },
+          "evidenceId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "kind",
+          "evidenceId"
+        ],
+        "additionalProperties": false
+      },
+      "DocumentEvidenceRef": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "const": "DOCUMENT"
+          },
+          "sourceDocumentId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "sourcePath": {
+            "type": "string",
+            "minLength": 0
+          },
+          "excerpt": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000
+          }
+        },
+        "required": [
+          "kind",
+          "sourceDocumentId",
+          "sourcePath",
+          "excerpt"
+        ],
+        "additionalProperties": false
+      },
+      "EvidenceRef": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/ExistingEvidenceRef"
+          },
+          {
+            "$ref": "#/components/schemas/DocumentEvidenceRef"
+          }
+        ],
+        "discriminator": {
+          "propertyName": "kind",
+          "mapping": {
+            "EXISTING": "#/components/schemas/ExistingEvidenceRef",
+            "DOCUMENT": "#/components/schemas/DocumentEvidenceRef"
+          }
+        }
+      },
+      "KnowledgeCandidate": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "action": {
+            "type": "string",
+            "enum": [
+              "ADD",
+              "MERGE_EVIDENCE"
+            ]
+          },
+          "existingId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "disposition": {
+            "type": "string",
+            "enum": [
+              "PUBLISH",
+              "HOLD",
+              "DISCARD"
+            ]
+          },
+          "rationale": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000
+          },
+          "evidenceRefs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EvidenceRef"
+            },
+            "maxItems": 50
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "FEATURE",
+              "RESPONSIBILITY",
+              "CAPABILITY",
+              "COMMON_RULE",
+              "PROJECT_ARRANGEMENT"
+            ]
+          },
+          "statement": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 10000
+          },
+          "departmentIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "uniqueItems": true
+          },
+          "scope": {
+            "$ref": "#/components/schemas/Scope"
+          }
+        },
+        "required": [
+          "key",
+          "action",
+          "existingId",
+          "disposition",
+          "rationale",
+          "evidenceRefs",
+          "type",
+          "statement",
+          "departmentIds",
+          "scope"
+        ],
+        "additionalProperties": false
+      },
+      "RelationshipCandidate": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "action": {
+            "type": "string",
+            "enum": [
+              "ADD",
+              "MERGE_EVIDENCE"
+            ]
+          },
+          "existingId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "disposition": {
+            "type": "string",
+            "enum": [
+              "PUBLISH",
+              "HOLD",
+              "DISCARD"
+            ]
+          },
+          "rationale": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000
+          },
+          "evidenceRefs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EvidenceRef"
+            },
+            "maxItems": 50
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "UPSTREAM_OF",
+              "COLLABORATES_WITH"
+            ]
+          },
+          "fromDepartmentId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "toDepartmentId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "description": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 10000
+          },
+          "exchangedItems": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 2000
+            },
+            "maxItems": 50
+          },
+          "scope": {
+            "$ref": "#/components/schemas/Scope"
+          }
+        },
+        "required": [
+          "key",
+          "action",
+          "existingId",
+          "disposition",
+          "rationale",
+          "evidenceRefs",
+          "type",
+          "fromDepartmentId",
+          "toDepartmentId",
+          "description",
+          "exchangedItems",
+          "scope"
+        ],
+        "additionalProperties": false
+      },
+      "FeedbackObservation": {
+        "type": "object",
+        "properties": {
+          "workflowIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "uniqueItems": true
+          },
+          "code": {
+            "type": "string",
+            "enum": [
+              "UNKNOWN_ASSIGNMENT",
+              "UNASSIGNED_ASSIGNMENT",
+              "UNRESOLVED_CONFLICT",
+              "INSUFFICIENT_EVIDENCE",
+              "NO_GENERALIZABLE_CHANGE"
+            ]
+          },
+          "explanation": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000
+          },
+          "evidenceRefs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EvidenceRef"
+            },
+            "maxItems": 50
+          }
+        },
+        "required": [
+          "workflowIds",
+          "code",
+          "explanation",
+          "evidenceRefs"
+        ],
+        "additionalProperties": false
+      },
+      "FeedbackDepartment": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "description": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 10000
+          },
+          "supportingKnowledgeItemIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "uniqueItems": true
+          },
+          "supportingCandidateKeys": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "uniqueItems": true
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "description",
+          "supportingKnowledgeItemIds",
+          "supportingCandidateKeys"
+        ],
+        "additionalProperties": false
+      },
+      "FeedbackOutput": {
+        "type": "object",
+        "properties": {
+          "departments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FeedbackDepartment"
+            }
+          },
+          "knowledgeCandidates": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/KnowledgeCandidate"
+            },
+            "maxItems": 400
+          },
+          "relationshipCandidates": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RelationshipCandidate"
+            },
+            "maxItems": 400
+          },
+          "observations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FeedbackObservation"
+            },
+            "maxItems": 200
+          }
+        },
+        "required": [
+          "departments",
+          "knowledgeCandidates",
+          "relationshipCandidates",
+          "observations"
+        ],
+        "additionalProperties": false,
+        "description": "Maximum 400 candidates combined. PUBLISH needs evidence; ADD existingId is null; MERGE_EVIDENCE retains content and adds evidence only. Department identities stay fixed. Changed descriptions need ORGANIZATION support. The server allocates formal IDs and metadata."
+      },
+      "FeedbackPublication": {
+        "type": "object",
+        "properties": {
+          "projectId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "addedKnowledgeItemIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "uniqueItems": true
+          },
+          "mergedKnowledgeItemIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "uniqueItems": true
+          },
+          "addedRelationshipIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "uniqueItems": true
+          },
+          "mergedRelationshipIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "uniqueItems": true
+          }
+        },
+        "required": [
+          "projectId",
+          "addedKnowledgeItemIds",
+          "mergedKnowledgeItemIds",
+          "addedRelationshipIds",
+          "mergedRelationshipIds"
+        ],
+        "additionalProperties": false
+      },
+      "FeedbackDiagnostics": {
+        "type": "object",
+        "properties": {
+          "heldCandidates": {
+            "type": "array",
+            "items": {
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/KnowledgeCandidate"
+                },
+                {
+                  "$ref": "#/components/schemas/RelationshipCandidate"
+                }
+              ]
+            }
+          },
+          "discardedCandidates": {
+            "type": "array",
+            "items": {
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/KnowledgeCandidate"
+                },
+                {
+                  "$ref": "#/components/schemas/RelationshipCandidate"
+                }
+              ]
+            }
+          },
+          "observations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FeedbackObservation"
+            },
+            "maxItems": 200
+          }
+        },
+        "required": [
+          "heldCandidates",
+          "discardedCandidates",
+          "observations"
+        ],
+        "additionalProperties": false
+      },
+      "FeedbackResult": {
+        "type": "object",
+        "properties": {
+          "jobId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "globalMemoryVersion": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "publication": {
+            "$ref": "#/components/schemas/FeedbackPublication"
+          },
+          "diagnostics": {
+            "$ref": "#/components/schemas/FeedbackDiagnostics"
+          }
+        },
+        "required": [
+          "jobId",
+          "globalMemoryVersion",
+          "publication",
+          "diagnostics"
+        ],
+        "additionalProperties": false
+      },
+      "KnowledgeItemPage": {
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/KnowledgeItem"
+            }
+          },
+          "total": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 200
+          },
+          "offset": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "version",
+          "items",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "additionalProperties": false
+      },
+      "RelationshipPage": {
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DepartmentRelationship"
+            }
+          },
+          "total": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 200
+          },
+          "offset": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "version",
+          "items",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "additionalProperties": false
+      },
+      "ExperiencePage": {
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExperienceSummary"
+            }
+          },
+          "total": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 200
+          },
+          "offset": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "version",
+          "items",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "additionalProperties": false
+      },
+      "EvidencePage": {
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Evidence"
+            }
+          },
+          "total": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 200
+          },
+          "offset": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "version",
           "items",
           "total",
           "limit",

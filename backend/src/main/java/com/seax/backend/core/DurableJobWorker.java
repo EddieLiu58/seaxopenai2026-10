@@ -1,6 +1,7 @@
 package com.seax.backend.core;
 
 import com.seax.backend.ai.AiClient;
+import com.seax.backend.Json;
 import com.seax.backend.ai.AiFailure;
 
 import jakarta.annotation.PreDestroy;
@@ -23,6 +24,8 @@ public final class DurableJobWorker implements AutoCloseable {
     private static final Logger log = LoggerFactory.getLogger(DurableJobWorker.class);
     private final CoreService core;
     private final AiClient ai;
+    @Value("${seax.openai.max-input-characters:200000}")
+    private int maxInputCharacters=200000;
     private final boolean enabled;
     private final Duration attemptTimeout;
     private final Duration heartbeatInterval;
@@ -142,33 +145,25 @@ public final class DurableJobWorker implements AutoCloseable {
         switch ((String) job.get("type")) {
             case "INITIAL_ANALYSIS" -> initial(id, token, input, deadline, leaseLost);
             case "FEEDBACK" -> {
-                Map<String, Object> result =
-                        ai.generate(
-                                "feedback",
-                                Map.of(
-                                        "report",
-                                        input.get("report"),
-                                        "reportDiffs",
-                                        input.get("reportDiffs"),
-                                        "globalMemory",
-                                        input.get("globalMemory")),
-                                remaining(deadline));
-                if (!result.keySet().equals(Set.of("departments"))) throw invalid();
-                var departments = objects(result.get("departments"));
-                ensureCurrent(deadline, leaseLost);
-                core.applyFeedback(id, token, departments);
+                boolean expanded=CoreService.expanded(input);
+                Map<String,Object> request=expanded ? AiInputAssembler.feedback(input) : Map.of(
+                        "report",input.get("report"),"reportDiffs",input.get("reportDiffs"),"globalMemory",input.get("globalMemory"));
+                var result=generate(expanded ? "feedback_v2" : "feedback",request,deadline);
+                ensureCurrent(deadline,leaseLost);
+                if(expanded) core.applyExpandedFeedback(id,token,result);
+                else {
+                    if(!result.keySet().equals(Set.of("departments")))throw invalid();
+                    core.applyFeedback(id,token,objects(result.get("departments")));
+                }
             }
             default -> {
-                Map<String, Object> request =
-                        Map.of(
-                                "workflows",
-                                classifierWorkflows(objects(input.get("workflows"))),
-                                "globalMemory",
-                                input.get("globalMemory"));
-                Map<String, Object> result = ai.generate("classify", request, remaining(deadline));
-                var assignments = assignments(result);
-                ensureCurrent(deadline, leaseLost);
-                core.applyClassifications(id, token, assignments);
+                boolean expanded=CoreService.expanded(input);
+                Map<String,Object> request=expanded ? object(input.get("classificationInput")) : Map.of(
+                        "workflows",classifierWorkflows(objects(input.get("workflows"))),"globalMemory",input.get("globalMemory"));
+                var result=generate(expanded ? "classify_v2" : "classify",request,deadline);
+                var assignments=assignments(result,expanded);
+                ensureCurrent(deadline,leaseLost);
+                core.applyClassifications(id,token,assignments);
             }
         }
     }
@@ -179,22 +174,25 @@ public final class DurableJobWorker implements AutoCloseable {
             Map<String, Object> input,
             long deadline,
             AtomicBoolean leaseLost) {
-        Map<String, Object> split =
-                ai.generate("split", Map.of("content", input.get("content")), remaining(deadline));
-        if (!split.keySet().equals(Set.of("workflows"))) throw invalid();
-        List<Map<String, Object>> workflows = prepareSplit(objects(split.get("workflows")));
-        Set<String> expectedIds = new HashSet<>();
-        workflows.forEach(w -> expectedIds.add((String) w.get("id")));
-        Map<String, Object> result =
-                ai.generate(
-                        "classify",
-                        Map.of(
-                                "workflows",
-                                classifierWorkflows(workflows),
-                                "globalMemory",
-                                input.get("globalMemory")),
-                        remaining(deadline));
-        List<Map<String, Object>> assignments = assignments(result);
+        boolean expanded=CoreService.expanded(input);
+        List<Map<String,Object>> workflows;
+        if(expanded && input.containsKey("preparedWorkflows")) workflows=objects(input.get("preparedWorkflows"));
+        else {
+            var split=generate("split",Map.of("content",input.get("content")),deadline);
+            if(!split.keySet().equals(Set.of("workflows")))throw invalid();
+            workflows=prepareSplit(objects(split.get("workflows")));
+            if(expanded) {
+                ensureCurrent(deadline,leaseLost);
+                input=core.checkpointInitial(id,token,workflows);
+                workflows=objects(input.get("preparedWorkflows"));
+            }
+        }
+        Set<String> expectedIds=new HashSet<>();
+        workflows.forEach(w->expectedIds.add(w.get("id").toString()));
+        Map<String,Object> request=expanded ? object(input.get("classificationInput")) : Map.of(
+                "workflows",classifierWorkflows(workflows),"globalMemory",input.get("globalMemory"));
+        var result=generate(expanded ? "classify_v2" : "classify",request,deadline);
+        var assignments=assignments(result,expanded);
         Set<String> seen = new HashSet<>();
         for (Map<String, Object> assignment : assignments) {
             String workflowId = uuid(assignment.get("workflowId")).toString();
@@ -258,15 +256,16 @@ public final class DurableJobWorker implements AutoCloseable {
                 .toList();
     }
 
-    private List<Map<String, Object>> assignments(Map<String, Object> response) {
+    private List<Map<String, Object>> assignments(Map<String, Object> response, boolean expanded) {
         if (!response.keySet().equals(Set.of("assignments"))) throw invalid();
         List<Map<String, Object>> assignments = objects(response.get("assignments"));
         for (var assignment : assignments) {
-            if (!assignment
-                    .keySet()
-                    .equals(Set.of("workflowId", "assignmentStatus", "departmentId")))
+            if (!assignment.keySet().equals(expanded ? Set.of("workflowId","assignmentStatus","departmentId",
+                    "decisionCode","explanation","candidateDepartmentIds","missingInformation","knowledgeItemIds","evidenceIds")
+                    : Set.of("workflowId","assignmentStatus","departmentId","assignmentReason")))
                 throw invalid();
             uuid(assignment.get("workflowId"));
+            text(assignment.get(expanded ? "explanation" : "assignmentReason"), 2000);
             if ("UNKNOWN".equals(assignment.get("assignmentStatus"))) {
                 if (assignment.get("departmentId") != null) throw invalid();
             } else if ("ASSIGNED".equals(assignment.get("assignmentStatus")))
@@ -274,6 +273,16 @@ public final class DurableJobWorker implements AutoCloseable {
             else throw invalid();
         }
         return assignments;
+    }
+
+    private Map<String,Object> generate(String operation,Map<String,Object> input,long deadline) {
+        String serialized=Json.write(input);
+        if(maxInputCharacters<1 || serialized.codePointCount(0,serialized.length())>maxInputCharacters)
+            throw new AiFailure("AI_INPUT_TOO_LARGE","AI 輸入超過設定容量，未截斷資料。",false);
+        return ai.generate(operation,input,remaining(deadline));
+    }
+    @SuppressWarnings("unchecked") private static Map<String,Object> object(Object value) {
+        if(!(value instanceof Map<?,?>))throw invalid();return (Map<String,Object>)value;
     }
 
     private static List<Map<String, Object>> objects(Object value) {

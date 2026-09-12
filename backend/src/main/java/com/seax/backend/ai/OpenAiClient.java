@@ -148,6 +148,7 @@ public class OpenAiClient implements AiClient {
                     + " of the input. ";
         return base
                 + switch (operation) {
+                    case "classify_v2", "feedback_v2" -> PromptSchemas.prompt(operation);
                     case "split" ->
                             "Split the requirement content into 1–200 workflows with unique"
                                 + " nonblank temporary keys, concise names and concrete"
@@ -164,7 +165,9 @@ public class OpenAiClient implements AiClient {
                                 + " department fits, return assignmentStatus UNKNOWN and"
                                 + " departmentId null; never guess to fill a category. Otherwise"
                                 + " return ASSIGNED and the exact department UUID. Do not return"
-                                + " UNASSIGNED. Do not change or omit workflow IDs.";
+                                + " UNASSIGNED. For every result, include assignmentReason: a concise"
+                                + " explanation grounded only in the supplied workflow and organization"
+                                + " data. Do not change or omit workflow IDs.";
                     case "feedback" ->
                             "Improve department responsibility descriptions from the final report"
                                 + " and complete reportDiffs history. Treat UNKNOWN and UNASSIGNED"
@@ -179,7 +182,10 @@ public class OpenAiClient implements AiClient {
 
     private static Map<String, Object> schema(String operation) {
         var string = Map.<String, Object>of("type", "string");
+        var assignmentReason =
+                Map.<String, Object>of("type", "string", "minLength", 1, "maxLength", 2000);
         return switch (operation) {
+            case "classify_v2", "feedback_v2" -> PromptSchemas.schema(operation);
             case "split" ->
                     object(
                             Map.of(
@@ -213,7 +219,9 @@ public class OpenAiClient implements AiClient {
                                                             "departmentId",
                                                             Map.of(
                                                                     "type",
-                                                                    List.of("string", "null")))))));
+                                                                    List.of("string", "null")),
+                                                            "assignmentReason",
+                                                            assignmentReason))))));
             case "feedback" ->
                     object(
                             Map.of(

@@ -89,3 +89,27 @@ API 與背景 worker 在同一個 Spring Boot 程序。任務、輸入快照、�
 更新 OpenAPI 契約時執行 `python3 scripts/generate_openapi.py`。JSON 契約位於 `src/main/resources/static/openapi.json`，Swagger UI 直接使用該檔。
 
 本次範圍是後端；現有 frontend 仍需新增專案／報告操作介面並呼叫上述 API。
+
+## GlobalMemory schemaVersion 2 擴充
+
+本次擴充採用版本化知識、結案案例及原始證據。`GET /global-memory` 與初始化回應改為 metadata、departments、relationshipsDescription、counts；詳細集合透過以下 API 查詢，集合請求必須指定 `version`，分頁沿用同一版本。
+
+| API（省略 `/api/v1`） | 內容 |
+|---|---|
+| `GET /global-memory/knowledge-items` | 知識、適用範圍及證據 ID |
+| `GET /global-memory/relationships` | 隸屬、上下游或協作關係 |
+| `GET /global-memory/experiences` | 結案案例摘要 |
+| `GET /global-memory/experiences/{projectId}` | 完整凍結案例 |
+| `GET /global-memory/evidence` | 可核對來源位置與摘錄 |
+| `GET /projects/{projectId}/analysis-results` | 歸屬原因、候選、資訊缺口與引用 |
+| `GET /jobs/{jobId}/feedback-result` | 成功發布結果及 HOLD／DISCARD 診斷 |
+
+新歸屬分析使用 `classify_v2`，輸入為 workflow 文字及固定版本 `memoryContext`。ASSIGNED 必須有正向職責證據；UNKNOWN 保存原因碼與待補資訊，也是成功結果。人工改派不改寫歷史 AI 解釋。既有升級前任務保留原契約。
+
+`feedback_v2` 使用凍結專案、完整報告與 Diff、最新完整記憶及来源目錄。模型只回傳部門概要、知識／關係候選及觀察；後端驗證並配置 ID、證據與案例。PROJECT 範圍不能自動升為 ORGANIZATION；結案確認分工不表示已執行。部門 ID、名稱及組織隸屬不由結案 AI 調整。超容量以不可重試的 `AI_INPUT_TOO_LARGE` 結束。
+
+POC 暫沿用 `/api/v1`，回應格式已有變更，前端與既有消費者需要同步升級。完整欄位與查詢參數以 [OpenAPI JSON](src/main/resources/static/openapi.json) 為準。執行 `python scripts/generate_openapi.py` 可重建 JSON，產生前會檢查新版端點及 schema 引用。
+
+本次僅完成離線 JDK 契約測試與 OpenAPI 產生器檢查；上方既有整合驗證紀錄屬擴充前版本，不能視為本次擴充已通過整合測試。待 Gradle 依賴可用後，執行 `./gradlew test integrationTest generateApiHtml`（整合測試需 PostgreSQL）驗證並重新產生 `swagger/index.html`。目前已保留既有離線資源並更新 HTML 內嵌 OpenAPI 契約；未新增真實模型呼叫。
+
+新版 classify_v2 的 explanation 同步保存至既有 Workflow.assignmentReason；人工改派或重設時清空目前理由，歷史 analysis-results 保留。V3__workflow_assignment_reason.sql 保持原樣，擴充記憶使用 V4__expanded_memory.sql。

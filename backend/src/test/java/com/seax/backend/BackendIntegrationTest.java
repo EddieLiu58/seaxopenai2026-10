@@ -104,6 +104,72 @@ class BackendIntegrationTest {
     }
 
     @Test
+    void reportReturnsAiAssignmentReasonAndManualAssignmentClearsIt() {
+        seed();
+        ai.department = (String) list(memory, "departments").getFirst().get("id");
+        ai.assignmentReason = "退款申請屬於客服部的既有職責。";
+        String project = id(createAndRun());
+        Map<String, Object> workflow = list(report(project), "workflows").getFirst();
+        assertThat(workflow)
+                .containsEntry("assignmentSource", "AI")
+                .containsEntry("assignmentReason", "退款申請屬於客服部的既有職責。");
+
+        Map<String, Object> descriptionEdit =
+                map(
+                        patch(
+                                id(workflow),
+                                Map.of("expectedReportVersion", 1, "description", "更新描述"),
+                                200),
+                        "workflow");
+        assertThat(descriptionEdit)
+                .containsEntry("assignmentSource", "AI")
+                .containsEntry("assignmentReason", "退款申請屬於客服部的既有職責。");
+
+        Map<String, Object> manual =
+                map(
+                        patch(
+                                id(workflow),
+                                Map.of(
+                                        "expectedReportVersion", 2,
+                                        "departmentId", ai.department),
+                                200),
+                        "workflow");
+        assertThat(manual)
+                .containsEntry("assignmentSource", "USER")
+                .containsEntry("assignmentReason", null);
+        Map<String, Object> latestDiff =
+                list(get("/projects/" + project + "/report-diffs", 200), "items").getLast();
+        Map<String, Object> change = list(latestDiff, "changes").getFirst();
+        assertThat((List<String>) change.get("changedFields")).contains("assignmentReason");
+        assertThat(map(change, "before"))
+                .containsEntry("assignmentReason", "退款申請屬於客服部的既有職責。");
+        assertThat(map(change, "after")).containsEntry("assignmentReason", null);
+    }
+
+    @Test
+    void allReanalysisClearsAiAssignmentReasonBeforeTheNewClassification() {
+        seed();
+        String project = id(createAndRun());
+        Map<String, Object> workflow = list(report(project), "workflows").getFirst();
+        assertThat(workflow).containsEntry("assignmentReason", "組織職能與工作描述相符。");
+
+        post(
+                "/projects/" + project + "/analyses",
+                Map.of("type", "ALL_REANALYZE", "expectedReportVersion", 1, "reason", "重新確認"),
+                202);
+        Map<String, Object> cleared = list(report(project), "workflows").getFirst();
+        assertThat(cleared)
+                .containsEntry("assignmentStatus", "UNASSIGNED")
+                .containsEntry("assignmentReason", null);
+        Map<String, Object> latestDiff =
+                list(get("/projects/" + project + "/report-diffs", 200), "items").getLast();
+        Map<String, Object> change = list(latestDiff, "changes").getFirst();
+        assertThat(map(change, "before"))
+                .containsEntry("assignmentReason", "組織職能與工作描述相符。");
+        assertThat(map(change, "after")).containsEntry("assignmentReason", null);
+    }
+
+    @Test
     void completeLifecyclePreservesGraphAuditsUnknownAndCloseDespiteFeedbackFailure() {
         seed();
         var created = post("/projects", projectBody(), 202);
@@ -206,7 +272,7 @@ class BackendIntegrationTest {
                 .isEqualTo(List.of(b, c).stream().sorted().toList());
         worker.runOnce();
         assertThat(report(project).get("version")).isEqualTo(4);
-        assertThat(ai.lastClassify.keySet()).containsExactlyInAnyOrder("workflows", "globalMemory");
+        assertThat(ai.lastClassify.keySet()).containsExactlyInAnyOrder("workflows", "memoryContext", "projectId", "retrievalManifest");
         list(ai.lastClassify, "workflows")
                 .forEach(
                         w ->
@@ -259,7 +325,7 @@ class BackendIntegrationTest {
                 .containsEntry("jobId", id(map(analysis, "job")));
         assertThat(list(diffs.getFirst(), "changes").getFirst().keySet())
                 .contains("before", "after", "changedFields");
-        assertThat(ai.lastFeedback).containsKeys("report", "reportDiffs", "globalMemory");
+        assertThat(ai.lastFeedback).containsKeys("contractVersion", "project", "finalReport", "reportDiffs", "globalMemory", "sourceDocuments");
     }
 
     @Test
@@ -536,7 +602,7 @@ class BackendIntegrationTest {
         ai.classifyTransform =
                 result -> {
                     var assignments = list(result, "assignments");
-                    assignments.getFirst().remove("departmentId");
+                    assignments.getFirst().remove("explanation");
                     return result;
                 };
         worker.runOnce();
@@ -1544,6 +1610,7 @@ class BackendIntegrationTest {
         volatile AiFailure failure;
         volatile boolean invalidSplit;
         volatile String department;
+        volatile String assignmentReason = "組織職能與工作描述相符。";
         Map<String, Object> lastClassify, lastFeedback;
         Function<Map<String, Object>, Map<String, Object>> classifyTransform = Function.identity();
 
@@ -1551,6 +1618,7 @@ class BackendIntegrationTest {
             failure = null;
             invalidSplit = false;
             department = null;
+            assignmentReason = "組織職能與工作描述相符。";
             lastClassify = null;
             lastFeedback = null;
             classifyTransform = Function.identity();
@@ -1569,7 +1637,7 @@ class BackendIntegrationTest {
                                         wf("B", List.of("A")),
                                         wf("C", List.of("A")),
                                         wf("D", List.of("B", "C"))));
-                case "classify" -> {
+                case "classify", "classify_v2" -> {
                     lastClassify = Json.copy(input);
                     yield classifyTransform.apply(
                             Map.of(
@@ -1586,9 +1654,39 @@ class BackendIntegrationTest {
                                                                         ? "UNKNOWN"
                                                                         : "ASSIGNED");
                                                         result.put("departmentId", department);
+                                                        if (!operation.equals("classify_v2")) result.put("assignmentReason", assignmentReason);
+                                                        if (operation.equals("classify_v2")) {
+                                                            var context = map(input, "memoryContext");
+                                                            result.put("decisionCode", department == null
+                                                                    ? "INSUFFICIENT_ORGANIZATION_KNOWLEDGE" : "MATCHED_RESPONSIBILITY");
+                                                            result.put("explanation", assignmentReason);
+                                                            result.put("candidateDepartmentIds", department == null ? List.of() : List.of(department));
+                                                            result.put("missingInformation", department == null ? List.of("Provide responsibility evidence.") : List.of());
+                                                            var knowledge = list(context, "knowledgeItems").stream()
+                                                                    .filter(k -> department != null && ((List<?>) k.get("departmentIds")).contains(department))
+                                                                    .toList();
+                                                            result.put("knowledgeItemIds", knowledge.stream().map(k -> k.get("id")).toList());
+                                                            result.put("evidenceIds", knowledge.stream()
+                                                                    .flatMap(k -> ((List<?>) k.get("evidenceIds")).stream()).distinct().toList());
+                                                        }
                                                         return result;
                                                     })
                                             .toList()));
+                }
+                case "feedback_v2" -> {
+                    lastFeedback = Json.copy(input);
+                    var currentMemory = map(input, "globalMemory");
+                    yield Map.of(
+                            "departments", list(currentMemory, "departments").stream()
+                                    .map(d -> Map.of(
+                                            "id", d.get("id"), "name", d.get("name"),
+                                            "description", d.get("description") + " Improved.",
+                                            "supportingKnowledgeItemIds", list(currentMemory, "knowledgeItems").stream()
+                                                    .filter(k -> ((List<?>) k.get("departmentIds")).contains(d.get("id"))
+                                                            && "ORGANIZATION".equals(map(k, "scope").get("level")))
+                                                    .map(k -> k.get("id")).toList(),
+                                            "supportingCandidateKeys", List.of())).toList(),
+                            "knowledgeCandidates", List.of(), "relationshipCandidates", List.of(), "observations", List.of());
                 }
                 case "feedback" -> {
                     lastFeedback = Json.copy(input);

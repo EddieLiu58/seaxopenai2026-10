@@ -1,8 +1,8 @@
 # GlobalMemory 擴充資料結構與 API 設計
 
-日期：2026-09-12。狀態：供 review 的擴充設計，尚未修改 backend/spec.md 或實作 API。
+日期：2026-09-12。狀態：已納入本次 backend 實作；完整執行驗證狀態見同步紀錄。
 
-基準：`C:\Users\User\IdeaProjects\seaxopenai2026-10\backend\spec.md`；SHA-256：`481588985190E5DA170A8C410344746024C93E50653205DDAEEC0B00D9048563`。
+依據：backend/spec.md 第 11 節及 prompt-scenarios-and-apis.md。
 
 ## 1. 設計選擇
 
@@ -129,7 +129,9 @@ WorkflowExperience 使用原 Workflow 完整欄位：id、reportId、name、desc
 | `GET /api/v1/jobs/{jobId}` | 原 result 保留；報告分析成功另回傳 analysisId；FEEDBACK 成功仍以 globalMemoryVersion 定位發布結果。 |
 | `GET /api/v1/projects/{projectId}/analysis-results` | 新增分頁查詢不可變分析紀錄，支援 jobId；每筆含 analysisId、jobId、reportVersion、globalMemoryVersion、results。 |
 
-analysis-results 每個結果包含 workflowId、assignmentStatus、departmentId、explanation（給使用者的简短判斷摘要）、knowledgeItemIds、evidenceIds。引用必須屬於該次固定 GlobalMemory 版本且確實提供給模型；UNKNOWN 也回傳無法決定的原因。此處不要求揭露模型內部思考過程。
+analysis-results 每個結果包含 workflowId、assignmentStatus、departmentId、decisionCode、explanation（給使用者的簡短判斷摘要）、candidateDepartmentIds、missingInformation、knowledgeItemIds、evidenceIds。引用必須屬於該次固定 GlobalMemory 版本且確實提供給模型；UNKNOWN 也回傳原因碼與缺少資訊。完整 UNKNOWN 規則與欄位限制見 `prompt-scenarios-and-apis.md` 第 4 節。
+
+新增 `GET /api/v1/jobs/{jobId}/feedback-result`，查詢成功回饋的 publication 與 diagnostics，區分實際發布項目、HOLD／DISCARD 候選與 observations。Job.result 的報告分析成功結構明定為 `{reportVersion, analysisId}`；FEEDBACK 仍為 `{globalMemoryVersion}`。詳細回應與錯誤見 Prompt 文件第 8 節。
 
 人工修改後原 AI 分析紀錄仍保留，其 reportVersion 表明它是過去判斷，不能把它顯示成使用者手動分配的原因。使用者原本的 ReportDiff.reason 與 AI explanation 分開保存。
 
@@ -143,11 +145,15 @@ analysis-results 每個結果包含 workflowId、assignmentStatus、departmentId
 |---|---|
 | workflow_decomposition | 維持只從 UserDoc 拆解工作及相依。 |
 | 案例检索（後端） | 依目標工作的名稱／描述，在固定 GlobalMemory 版本找相關知識與結案案例；保存實際選入的 ID 清單及內容快照。不需新增生成式 AI Prompt，POC 可先採文字檢索。 |
-| department_assignment | 輸入部門概要、適用知識／關係及檢索到的結案案例與證據。輸出原歸屬欄位，加 explanation、knowledgeItemIds、evidenceIds。本次工作的相依與前置部門仍不作額外依據。 |
-| organization_feedback | 輸入凍結 Report、完整 Diff、最新 GlobalMemory；輸出 descriptionUpdates、relationshipCandidates、knowledgeCandidates。候選可暫用 key，正式 ID 與 Evidence 由後端配置。 |
+| department_assignment | 輸入部門概要、適用知識／關係及檢索到的結案案例與證據。輸出歸屬、decisionCode、explanation、candidateDepartmentIds、missingInformation、knowledgeItemIds、evidenceIds。本次工作的相依與前置部門仍不作額外依據。 |
+| organization_feedback | 輸入 contractVersion、凍結 Project／finalReport／reportDiffs、最新 globalMemory、sourceDocuments。輸出固定 departments、knowledgeCandidates、relationshipCandidates、observations；不再使用 descriptionUpdates 名稱。departments 須完整列出原部門，候選包含 PUBLISH／HOLD／DISCARD。正式 ID、Evidence 與案例由後端配置。 |
 | 回饋發布（後端） | 驗證來源、欄位及 scope；僅發布來源足以支持的項目。未解衝突候選留在回饋診斷；無支持的新結論可略過，仍可發布結案案例。 |
 
 同一報告分析的自動／手動重試沿用固定記憶版本及檢索快照。FEEDBACK 每次重新讀最新記憶。保留既有版本衝突重試、租約、單一 FEEDBACK 執行與 sourceProjectId 唯一生效規則。
+
+回饋候選 action 為 ADD 或 MERGE_EVIDENCE；後者只補來源，不能覆蓋舊規則。未解矛盾留在診斷。完整欄位與來源定位依 `prompt-scenarios-and-apis.md` 第 5–7 節及 `organization-feedback-input.json`／`organization-feedback-output.json`；發布結果另見 `organization-feedback-published-memory.json`。
+
+輸入超過模型可處理容量時使用新增 Job error AI_INPUT_TOO_LARGE、retryable=false，不靜默截斷後發布不完整分析。回饋的完整邏輯記憶策略是本 POC 的容量限制，日後分批／檢索式回饋需另定契約。
 
 目前 spec 僅准回饋改 description；本提案擴為新增有證據的關係與知識。部門新增、刪除、改名及隸屬組織架構調整仍不交給結案 AI 自動執行；REPORTS_TO 只由初始化資料提供。專案協作關係可存 PROJECT 範圍，一般上下游需有明確一般性證據。
 

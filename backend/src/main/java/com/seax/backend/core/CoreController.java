@@ -28,7 +28,7 @@ public final class CoreController {
     Map<String, Object> memory(@RequestParam(required = false) Integer version) {
         if (version != null && version < 1)
             throw ApiException.bad("INVALID_REQUEST", "version 必須為正整數。");
-        return core.memory(version);
+        return core.memorySummary(version);
     }
 
     @PostMapping("/projects")

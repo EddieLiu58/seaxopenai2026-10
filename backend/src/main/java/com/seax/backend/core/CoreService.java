@@ -18,11 +18,13 @@ public final class CoreService {
     private final CoreJdbc jdbc;
     private final CoreTransactions tx;
     private final Clock clock;
+    private final MemoryStore memoryStore;
 
     public CoreService(CoreJdbc jdbc, CoreTransactions tx, Clock clock) {
         this.jdbc = jdbc;
         this.tx = tx;
         this.clock = clock;
+        this.memoryStore = new MemoryStore(jdbc);
     }
 
     public record HttpResult(int status, Map<String, Object> body) {}
@@ -71,35 +73,32 @@ public final class CoreService {
     }
 
     public Map<String, Object> initializeMemory(Map<String, Object> body) {
-        return tx.execute(
-                s -> {
-                    allowed(body, "departments", "relationshipsDescription");
-                    memoryLock();
-                    if (jdbc.queryForObject("select count(*) from global_memory", Integer.class)
-                            > 0)
-                        throw ApiException.conflict(
-                                "GLOBAL_MEMORY_ALREADY_INITIALIZED", "全域記憶已初始化。");
-                    List<Map<String, Object>> departments =
-                            maps(body.get("departments"), "departments");
-                    if (departments.isEmpty() || departments.size() > 200) throw invalid();
-                    Set<UUID> ids = new HashSet<>();
-                    for (Map<String, Object> d : departments) {
-                        allowed(d, "id", "name", "description");
-                        UUID id = uuid(d.get("id"), "部門 ID 無效。");
-                        if (!ids.add(id)) throw invalid();
-                        text(d.get("name"), 1, 200, "部門名稱無效。");
-                        text(d.get("description"), 1, 10000, "部門描述無效。");
-                    }
-                    String relationships =
-                            text(body.get("relationshipsDescription"), 0, 100000, "部門關係說明無效。");
-                    Instant at = now();
-                    jdbc.update(
-                            "insert into global_memory values(1,?::jsonb,?,'INITIAL',null,?)",
-                            Json.write(departments),
-                            relationships,
-                            java.sql.Timestamp.from(at));
-                    return memory(1);
-                });
+        return tx.execute(s -> {
+            memoryLock();
+            if (jdbc.queryForObject("select count(*) from global_memory", Integer.class)>0)
+                throw ApiException.conflict("GLOBAL_MEMORY_ALREADY_INITIALIZED", "全域記憶已初始化。");
+            Map<String,Object> full;
+            try { full = Json.copy(MemoryContracts.initialize(Json.copy(body))); }
+            catch (IllegalArgumentException e) { throw invalid(); }
+            full.put("createdAt", now().toString());
+            jdbc.update("insert into global_memory(version,departments,relationships_description,source,source_project_id,created_at) values(1,?::jsonb,?,'INITIAL',null,?)",
+                Json.write(full.get("departments")), full.get("relationshipsDescription"), now());
+            memoryStore.saveInitialSource(Json.copy(body));
+            memoryStore.save(full);
+            return memorySummary(1);
+        });
+    }
+
+    public Map<String,Object> memorySummary(Integer version) {
+        return tx.read(() -> {
+            var full=memory(version);
+            var summary=new LinkedHashMap<>(full);
+            var counts=new LinkedHashMap<String,Object>();
+            for(String key:List.of("relationships","knowledgeItems","projectExperiences","evidence")) {
+                counts.put(key,((List<?>)summary.getOrDefault(key,List.of())).size()); summary.remove(key);
+            }
+            summary.put("counts",counts); return summary;
+        });
     }
 
     Map<String, Object> currentMemory() {
@@ -121,7 +120,7 @@ public final class CoreService {
                         v);
         if (rows.isEmpty()) throw ApiException.notFound();
         Map<String, Object> r = rows.getFirst();
-        return map(
+        return memoryStore.expand(map(
                 "version",
                 r.get("version"),
                 "departments",
@@ -133,7 +132,7 @@ public final class CoreService {
                 "sourceProjectId",
                 r.get("source_project_id"),
                 "createdAt",
-                iso(r.get("created_at")));
+                iso(r.get("created_at"))));
     }
 
     // PostgreSQL JSON arrays are decoded through a wrapper so Json's public read-object helper
@@ -286,7 +285,7 @@ public final class CoreService {
                     validateDeps(lock.reportId(), id, dependencies, now());
                     Instant at = now();
                     jdbc.update(
-                            "insert into workflows values(?,?,?,?,?,?,?,?,?)",
+                            "insert into workflows(id,report_id,name,description,assignment_status,department_id,assignment_source,created_at,updated_at,assignment_reason) values(?,?,?,?,?,?,?,?,?,?)",
                             id,
                             lock.reportId(),
                             text(body.get("name"), 1, 200, "工作名稱無效。"),
@@ -295,7 +294,8 @@ public final class CoreService {
                             assignment.department,
                             assignment.source,
                             at,
-                            at);
+                            at,
+                            null);
                     replaceDeps(lock.reportId(), id, dependencies);
                     Map<String, Object> after = workflow(id);
                     event(
@@ -359,6 +359,8 @@ public final class CoreService {
                                     ? text(body.get("description"), 1, 10000, "工作描述無效。")
                                     : (String) before.get("description");
                     Assignment a = assignment(body, before);
+                    boolean assignmentChanged =
+                            body.containsKey("assignmentStatus") || body.containsKey("departmentId");
                     List<UUID> deps =
                             body.containsKey("dependsOnWorkflowIds")
                                     ? uuids(body.get("dependsOnWorkflowIds"))
@@ -373,13 +375,14 @@ public final class CoreService {
                         return map("workflow", before, "reportVersion", lock.version());
                     jdbc.update(
                             "update workflows set"
-                                + " name=?,description=?,assignment_status=?,department_id=?,assignment_source=?,updated_at=?"
+                                + " name=?,description=?,assignment_status=?,department_id=?,assignment_source=?,assignment_reason=?,updated_at=?"
                                 + " where id=?",
                             name,
                             desc,
                             a.status,
                             a.department,
                             a.source,
+                            assignmentChanged ? null : before.get("assignmentReason"),
                             now(),
                             workflowId);
                     replaceDeps(reportId, workflowId, deps);
@@ -477,7 +480,7 @@ public final class CoreService {
                             Map<String, Object> b = workflow((UUID) w.get("id"));
                             jdbc.update(
                                     "update workflows set"
-                                        + " assignment_status='UNASSIGNED',department_id=null,assignment_source=null,updated_at=?"
+                                        + " assignment_status='UNASSIGNED',department_id=null,assignment_source=null,assignment_reason=null,updated_at=?"
                                         + " where id=?",
                                     now(),
                                     w.get("id"));
@@ -676,6 +679,8 @@ public final class CoreService {
                             int version = latestMemory();
                             Map<String, Object> input = Json.read((String) r.get("input"));
                             input.put("globalMemory", memory(version));
+                            input.put("contractVersion",2);
+                            input.put("project",project((UUID)r.get("project_id")));
                             jdbc.update(
                                     "update jobs set input=?::jsonb,global_memory_version=? where"
                                             + " id=?",
@@ -806,6 +811,9 @@ public final class CoreService {
                             || l.version() != ((Number) j.get("inputReportVersion")).longValue())
                         throw ApiException.conflict("STALE_JOB_INPUT", "任務輸入已過期。");
                     int memory = ((Number) j.get("globalMemoryVersion")).intValue();
+                    var frozenInput = jobInput(id);
+                    boolean expanded = expanded(frozenInput);
+                    if(expanded) validateExpandedAssignments(assignments,frozenInput,null);
                     Set<UUID> valid =
                             departments(memory).stream()
                                     .map(d -> uuid(d.get("id"), "invalid"))
@@ -819,12 +827,14 @@ public final class CoreService {
                     Set<UUID> seen = new HashSet<>();
                     List<Map<String, Object>> changes = new ArrayList<>();
                     for (Map<String, Object> a : assignments) {
-                        if (!a.keySet()
-                                .equals(Set.of("workflowId", "assignmentStatus", "departmentId")))
+                        if (!expanded && !a.keySet()
+                                .equals(Set.of("workflowId", "assignmentStatus", "departmentId", "assignmentReason")))
                             throw invalidAi();
                         UUID wid = uuid(a.get("workflowId"), "invalid");
                         if (!seen.add(wid) || !expected.containsKey(wid)) throw invalidAi();
                         String st = text(a.get("assignmentStatus"), 1, 20, "invalid");
+                        String assignmentReason =
+                                text(a.get(expanded ? "explanation" : "assignmentReason"), 1, 2000, "invalid");
                         Object did = a.get("departmentId");
                         if ("ASSIGNED".equals(st)) {
                             UUID d = uuid(did, "invalid");
@@ -833,10 +843,11 @@ public final class CoreService {
                         Map<String, Object> b = workflow(wid);
                         jdbc.update(
                                 "update workflows set"
-                                    + " assignment_status=?,department_id=?,assignment_source='AI',updated_at=?"
+                                    + " assignment_status=?,department_id=?,assignment_source='AI',assignment_reason=?,updated_at=?"
                                     + " where id=?",
                                 st,
                                 did == null ? null : uuid(did, "invalid"),
+                                assignmentReason,
                                 now(),
                                 wid);
                         changes.add(change(wid, "UPDATE", b, workflow(wid)));
@@ -851,7 +862,7 @@ public final class CoreService {
                             id,
                             memory,
                             changes);
-                    finish(id, token, map("reportVersion", l.version() + 1));
+                    finishAnalysis(id,token,l.projectId(),l.version()+1,memory,assignments,expanded);
                 });
     }
 
@@ -879,16 +890,19 @@ public final class CoreService {
                         text(w.get("name"), 1, 200, "invalid");
                         text(w.get("description"), 1, 10000, "invalid");
                     }
+                    var frozenInput = jobInput(id);
+                    boolean expanded = expanded(frozenInput);
+                    if(expanded) validateExpandedAssignments(assignments,frozenInput,split);
                     List<Map<String, Object>> a = assignments;
                     Set<UUID> assignmentIds = new HashSet<>();
                     for (Map<String, Object> assignment : a) {
-                        if (!assignment
+                        if ((!expanded && !assignment
                                         .keySet()
                                         .equals(
                                                 Set.of(
                                                         "workflowId",
                                                         "assignmentStatus",
-                                                        "departmentId"))
+                                                        "departmentId", "assignmentReason")))
                                 || !assignmentIds.add(
                                         uuid(assignment.get("workflowId"), "invalid")))
                             throw invalidAi();
@@ -916,12 +930,14 @@ public final class CoreService {
                                         .orElseThrow(CoreService::invalidAi);
                         if (!seen.add(wid)) throw invalidAi();
                         String st = text(as.get("assignmentStatus"), 1, 20, "invalid");
+                        String assignmentReason =
+                                text(as.get(expanded ? "explanation" : "assignmentReason"), 1, 2000, "invalid");
                         Object dep = as.get("departmentId");
                         if ("ASSIGNED".equals(st) && valid.contains(uuid(dep, "invalid"))) {
                         } else if ("UNKNOWN".equals(st) && dep == null) {
                         } else throw invalidAi();
                         jdbc.update(
-                                "insert into workflows values(?,?,?,?,?,?,?,?,?)",
+                                "insert into workflows(id,report_id,name,description,assignment_status,department_id,assignment_source,created_at,updated_at,assignment_reason) values(?,?,?,?,?,?,?,?,?,?)",
                                 wid,
                                 l.reportId(),
                                 w.get("name"),
@@ -930,7 +946,8 @@ public final class CoreService {
                                 dep == null ? null : uuid(dep, "invalid"),
                                 "AI",
                                 at,
-                                at);
+                                at,
+                                assignmentReason);
                     }
                     for (Map<String, Object> w : split) {
                         List<String> ks = strings(w.get("dependsOnKeys"));
@@ -947,8 +964,69 @@ public final class CoreService {
                                     .map(w -> change((UUID) w.get("id"), "CREATE", null, w))
                                     .toList();
                     event(l, "INITIAL_ANALYSIS", "APPLY", "AI", null, id, memory, changes);
-                    finish(id, token, map("reportVersion", 1L));
+                    finishAnalysis(id,token,l.projectId(),1L,memory,assignments,expanded);
                 });
+    }
+
+    static boolean expanded(Map<String,Object> input) {
+        return input.get("contractVersion") instanceof Number n && n.intValue()>=2;
+    }
+
+    private void validateExpandedAssignments(List<Map<String,Object>> assignments,
+            Map<String,Object> input,List<Map<String,Object>> prepared) {
+        try {
+            var request=obj(input.get("classificationInput"),"classificationInput");
+            MemoryContracts.validateAssignments(Json.copy(assignments),
+                Json.copy(maps(request.get("workflows"),"workflows")),Json.copy(obj(request.get("memoryContext"),"memoryContext")));
+        } catch(IllegalArgumentException e) { throw invalidAi(); }
+    }
+
+    private void finishAnalysis(UUID id,UUID token,UUID project,long version,int memory,
+            List<Map<String,Object>> assignments,boolean expanded) {
+        if(!expanded) { finish(id,token,map("reportVersion",version)); return; }
+        UUID analysis=UUID.randomUUID();
+        memoryStore.saveAnalysis(id,project,version,memory,assignments,analysis);
+        finish(id,token,map("reportVersion",version,"analysisId",analysis));
+    }
+
+    Map<String,Object> checkpointInitial(UUID id,UUID token,List<Map<String,Object>> workflows) {
+        return tx.execute(s -> {
+            Locked l=lockJobProject(id);
+            if(!owns(id,token)) throw ApiException.conflict("STALE_JOB_INPUT","任務執行權已失效。");
+            if(!"OPEN".equals(l.status())||l.version()!=0)throw ApiException.conflict("STALE_JOB_INPUT","報告已變更。");
+            var input=jobInput(id);
+            if(!input.containsKey("classificationInput")) {
+                input.put("preparedWorkflows",workflows);
+                input.put("classificationInput",AiInputAssembler.classification(l.projectId(),workflows,obj(input.get("globalMemory"),"globalMemory")));
+                requireWrite(jdbc.update("update jobs set input=?::jsonb where id=? and execution_token=? and status='RUNNING' and lease_until>?",Json.write(input),id,token,now()));
+            }
+            return input;
+        });
+    }
+
+    void applyExpandedFeedback(UUID id,UUID token,Map<String,Object> output) {
+        tx.execute(s -> {
+            Locked l=lockJobProject(id);
+            var j=job(row("select * from jobs where id=? for update",id));
+            if(!owns(id,token))return;
+            if(!"CLOSED".equals(l.status()))throw invalidAi();
+            memoryLock();
+            int current=latestMemory();
+            if(current!=((Number)j.get("globalMemoryVersion")).intValue())
+                throw ApiException.conflict("MEMORY_VERSION_CONFLICT","組織記憶版本已更新。");
+            Map<String,Object> result;
+            try { result=Json.copy(MemoryContracts.feedback(Json.copy(AiInputAssembler.feedback(jobInput(id))),Json.copy(output))); }
+            catch(IllegalArgumentException e) { throw invalidAi(); }
+            var full=obj(result.get("memory"),"memory");
+            full.put("createdAt",now().toString());
+            int next=current+1;
+            jdbc.update("insert into global_memory(version,departments,relationships_description,source,source_project_id,created_at) values(?,?::jsonb,?,'FEEDBACK',?,?)",
+                next,Json.write(full.get("departments")),full.get("relationshipsDescription"),l.projectId(),now());
+            memoryStore.save(full);
+            memoryStore.saveFeedback(id,map("globalMemoryVersion",next,"publication",result.get("publication"),"diagnostics",result.get("diagnostics")));
+            jdbc.update("insert into feedback_records(project_id,global_memory_version,created_at) values(?,?,?)",l.projectId(),next,now());
+            finish(id,token,map("globalMemoryVersion",next));
+        });
     }
 
     void applyFeedback(UUID id, UUID token, List<Map<String, Object>> output) {
@@ -1077,6 +1155,13 @@ public final class CoreService {
             long inputVersion,
             Map<String, Object> input,
             Instant at) {
+        input = new LinkedHashMap<>(input);
+        input.put("contractVersion",2);
+        input.put("projectId",project.toString());
+        if ("FEEDBACK".equals(type)) input.put("project",project(project));
+        if ("ALL_REANALYZE".equals(type)||"UNASSIGNED_ANALYZE".equals(type))
+            input.put("classificationInput",AiInputAssembler.classification(project,
+                maps(input.get("workflows"),"workflows"),obj(input.get("globalMemory"),"globalMemory")));
         if ("FEEDBACK".equals(type) && memory == null) {
             memory = latestMemory();
             input = new LinkedHashMap<>(input);
@@ -1300,6 +1385,8 @@ public final class CoreService {
                 r.get("department_id"),
                 "assignmentSource",
                 r.get("assignment_source"),
+                "assignmentReason",
+                r.get("assignment_reason"),
                 "createdAt",
                 iso(r.get("created_at")),
                 "updatedAt",

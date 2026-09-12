@@ -1,5 +1,7 @@
 # 後端開發規格（POC）
 
+> 2026-09-12 擴充實作：GlobalMemory 與 AI 契約以同目錄 `global-memory-expanded-design.md`、`prompt-scenarios-and-apis.md` 及 `src/main/resources/static/openapi.json` 的 schemaVersion 2 為準。以下基礎工作流程保留；若涉及舊版「僅改 description」、回饋三欄輸入或歸屬三欄輸出，已由文末第 11 節替代。
+
 ## 1. 目的與範圍
 
 使用者以 API 提交純文字需求，AI 將需求拆成具有先後相依關係的 Workflows，再根據各 Workflow 的名稱、描述與全系統共用的組織表（GlobalMemory）決定部門歸屬。使用者可以修正結果，單人確認後結案。系統分析最終結果及修改歷程，改善後續使用的組織職能描述。
@@ -17,7 +19,7 @@ POC 採單一組織環境、單一後端服務及 PostgreSQL。登入、角色�
 | Project | 專案。`id`、`name`、`status`（OPEN / CLOSED）、`createdAt`、`closedAt`（可為 null）。一個專案只有一份 UserDoc 及一份 Report。 |
 | UserDoc | 需求文字。`projectId`（唯一）、`content`、`createdAt`。保存 API body 的文字內容，不是檔案。建立後不允許替換。 |
 | Report | Workflow 集合的報告。`id`、`projectId`（唯一）、`version`、`createdAt`、`updatedAt`。不另存一份可獨立編輯的報告文字；讀取時組合其 Workflows。 |
-| Workflow | 工作任務。`id`、`reportId`、`name`、`description`、`dependsOnWorkflowIds`（UUID 陣列，不可為 null）、`assignmentStatus`（UNASSIGNED / ASSIGNED / UNKNOWN）、`departmentId`（可為 null）、`assignmentSource`（AI / USER / null）、`createdAt`、`updatedAt`。 |
+| Workflow | 工作任務。`id`、`reportId`、`name`、`description`、`dependsOnWorkflowIds`（UUID 陣列，不可為 null）、`assignmentStatus`（UNASSIGNED / ASSIGNED / UNKNOWN）、`departmentId`（可為 null）、`assignmentSource`（AI / USER / null）、`assignmentReason`（AI 判斷理由；可為 null）、`createdAt`、`updatedAt`。 |
 | Department | 組織表內的部門。`id`、`name`、`description`。部門 ID 在不同 GlobalMemory 版本之間保持一致。 |
 | GlobalMemory | 全系統共用且保留歷史的組織表。`version`（從 1 遞增）、`departments`、`relationshipsDescription`（字串）、`source`（INITIAL / FEEDBACK）、`sourceProjectId`（初始版本為 null）、`createdAt`。 |
 | ReportDiff | 不可修改的報告事件及差異，結構見第 5 節。 |
@@ -30,6 +32,7 @@ POC 採單一組織環境、單一後端服務及 PostgreSQL。登入、角色�
 - 歸屬使用下表三種狀態；「不知道」是 Workflow 的判定結果，不是 GlobalMemory 裡的虛擬部門。
 - 手動指定部門或標記不知道時來源為 USER；AI 判定時來源為 AI，即使部門與先前相同也是如此。清除判定時來源為 null。
 - AI 只能選擇本次 GlobalMemory 中存在的部門。名稱、描述或組織職能不足以支持判定、存在多個無法區分的候選部門，或沒有適合部門時，必須回傳 UNKNOWN 與 null departmentId，不得為了填滿歸屬而猜測。手動歸屬也必須參照有效部門 ID。
+- AI 每個歸屬結果必須附上 1–2,000 個 Unicode code point 的非空 `assignmentReason`，說明其根據或無法判定的原因；手動寫入歸屬時清除該欄位。此欄位不同於 ReportDiff 的使用者操作 `reason`。
 - 修改名稱或描述不會自動觸發 AI，也不會自動清除既有歸屬；使用者可同時清除歸屬或另行要求全部重新分析。
 - 首次分析必須產生 1–200 個 Workflows；手動操作後可為零個，上限同樣為 200 個。
 
@@ -82,7 +85,7 @@ AI 先根據 UserDoc 拆出 Workflow 名稱、描述與相依關係，再僅根�
 ### 全部重新分析歸屬
 
 - 僅重新決定既有 Workflows 的部門，不新增、刪除或修改 Workflow 的 ID、名稱、描述及 dependsOnWorkflowIds。
-- **清除所有既有部門歸屬，包含使用者手動指定的歸屬。** 接受請求時，在同一資料庫交易內將所有 Workflow（包含 UNKNOWN）重設為 UNASSIGNED、departmentId 與 assignmentSource 設為 null、記錄差異並建立 ALL_REANALYZE 任務。
+- **清除所有既有部門歸屬，包含使用者手動指定的歸屬。** 接受請求時，在同一資料庫交易內將所有 Workflow（包含 UNKNOWN）重設為 UNASSIGNED、departmentId、assignmentSource 與 assignmentReason 設為 null、記錄差異並建立 ALL_REANALYZE 任務。
 - 舊歸屬、舊 ReportDiff 及請求的 `reason` 不作為本次歸屬依據；reason 僅供記錄及結案後回饋使用。
 - AI 結果全部驗證成功後，在同一交易內寫入歸屬及 ReportDiff，不部分套用。
 - AI 失敗時保留清除後的未歸屬狀態，不恢復手動或 AI 舊歸屬；系統按第 6 節重試。
@@ -164,7 +167,7 @@ ReportDiff 僅能新增及讀取。Job 另外保存每次執行嘗試的批次�
 - 使用資料庫任務表與後端背景 worker，不另引入訊息佇列。API 建立資源及任務後立即回傳 202，不等待 AI。
 - 報告分析只允許以 Workflow 名稱、描述和 GlobalMemory 作歸屬判斷；UserDoc 僅用於首次 Workflow 拆解及相依關係推導。
 - 首次拆解的內部 AI 輸出為 `{ workflows: [{ key, name, description, dependsOnKeys }] }`。key 是該次結果內唯一且非空的暫時字串（最多 200 字元），dependsOnKeys 是前置項目的 key 陣列，不是公開 API 的 UUID。後端驗證參照存在、無重複／自我相依／循環後，配置正式 Workflow UUID，將 dependsOnKeys 映射成 dependsOnWorkflowIds；完成歸屬分析後，所有工作、關聯、ReportDiff 與任務成功狀態一次提交。首次分析重試不能留下部分工作或關聯。
-- AI 每個歸屬結果必須明確包含 assignmentStatus（僅 ASSIGNED 或 UNKNOWN）及 departmentId，assignmentSource 由後端設為 AI。UNKNOWN 必須搭配 null，ASSIGNED 必須搭配有效部門 ID；不能只回 null 或用 UNASSIGNED 表示不知道。AI 結果須先驗證結構、欄位限制、Workflow ID 集合及狀態與部門 ID 的組合。重新分析須對每個目標 ID 恰好回傳一次歸屬，不可新增或遺漏 ID，也不能修改名稱、描述與 dependsOnWorkflowIds。
+- AI 每個歸屬結果必須明確包含 assignmentStatus（僅 ASSIGNED 或 UNKNOWN）、departmentId 與非空 assignmentReason，assignmentSource 由後端設為 AI。UNKNOWN 必須搭配 null，ASSIGNED 必須搭配有效部門 ID；不能只回 null 或用 UNASSIGNED 表示不知道。AI 結果須先驗證結構、欄位限制、Workflow ID 集合及狀態與部門 ID 的組合。重新分析須對每個目標 ID 恰好回傳一次歸屬，不可新增或遺漏 ID，也不能修改名稱、描述與 dependsOnWorkflowIds。
 - UNKNOWN 是成功的業務結果；即使所有 Workflow 都是 UNKNOWN，Job 仍可為 SUCCEEDED，不觸發自動重試。API 呼叫失敗、逾時或格式錯誤仍按失敗處理，不轉成 UNKNOWN。
 - 每次 Job 嘗試總執行上限為 120 秒；超時中止該次嘗試。總共最多嘗試 3 次（首次加 2 次重試），等待時間分別為 5 秒及 30 秒。供應商要求更長等待時採較長值。
 - 連線失敗、逾時、供應商限流／5xx、AI 輸出驗證失敗及回饋版本衝突會自動重試；金鑰無效、權限不足及其他不可恢復的請求錯誤直接 FAILED。
@@ -231,7 +234,7 @@ Workflow 歸屬寫入規則：
 - POST 省略 assignmentStatus 與 departmentId 時建立 UNASSIGNED；PATCH 兩者皆省略則保留原判定。
 - 只傳 departmentId 時，有效 UUID 推導為 ASSIGNED，null 推導為 UNASSIGNED，維持明確清除歸屬的語意。
 - 明確傳 ASSIGNED 時必須同時提供有效 departmentId；傳 UNKNOWN 或 UNASSIGNED 時 departmentId 必須省略或為 null，後端一律清空舊部門。
-- 手動寫入 ASSIGNED 或 UNKNOWN 時由後端將 assignmentSource 設為 USER；寫入 UNASSIGNED 時設為 null。客戶端不可直接設定 assignmentSource。
+- 手動寫入 ASSIGNED 或 UNKNOWN 時由後端將 assignmentSource 設為 USER，並清除 assignmentReason；寫入 UNASSIGNED 時兩者設為 null。客戶端不可直接設定 assignmentSource 或 assignmentReason。
 - 狀態與部門 ID 不符時回傳 400 INVALID_REQUEST；不得自行挑部門修正。不涉及歸屬的名稱／描述編輯保留原狀態與來源。
 
 project、report、workflow、job、feedbackJob 使用第 2 節對應模型的公開欄位；report 包含 workflows。UserDoc 回應含 projectId、content、createdAt。Report version 及 expectedReportVersion 均為非負整數。
@@ -343,3 +346,20 @@ AI 在 202 之後的失敗由 Job 的 error 回報，不改寫原 HTTP 回應。
 ## 10. 使用者後續提供的資料
 
 初始部門清單、各部門職能描述，以及組織之間的實際關係由使用者後續提供。API 以 departments 及 relationshipsDescription 承接；若後續確認需要結構化的跨部門關係，再調整 GlobalMemory schema。本項是尚待提供的業務資料，不影響其餘 API 與任務規則的定義。
+
+
+## 11. GlobalMemory schemaVersion 2 實作契約
+
+- 新初始化接受結構化 relationships、knowledgeItems、evidence；舊格式的部門描述會保留原文，建立引用。原始初始化 payload 另存不可變來源。
+- 擴充保存知識／關係／證據的版本快照與結案案例成員；案例本身只存一份不可變內容。原 global_memory 與歷史 Diff 不改写。
+- GET /global-memory 回傳摘要與 counts；子集合以 version 查詢。新增七個 GET 端點：knowledge-items、relationships、experiences、experiences/{projectId}、evidence、projects/{projectId}/analysis-results、jobs/{jobId}/feedback-result（均以 /api/v1 開頭，記憶集合位於 /global-memory 下）。
+- 新 Job 記錄 contractVersion=2。classify_v2 回傳歸屬、decisionCode、explanation、candidateDepartmentIds、missingInformation、knowledgeItemIds、evidenceIds；判斷規則依 Prompt 文件。
+- 首次拆解成功後在 Job input 保存 preparedWorkflows 與 classificationInput；重試分類沿用工作 ID 及檢索快照，不先建立公開工作。
+- 分類使用全部組織知識與最多 20 個文字相關案例，保留來源；輸入字元上限由 seax.openai.max-input-characters 設定，預設 200000。字元限制是本地防護，並非供應商 token 容量保證；超限 AI_INPUT_TOO_LARGE 不自動重試、不靜默截斷。
+- feedback_v2 輸入為 contractVersion、project、finalReport、reportDiffs、globalMemory、sourceDocuments；輸出為 departments、knowledgeCandidates、relationshipCandidates、observations。候選分 PUBLISH／HOLD／DISCARD；只有 PUBLISH 進入永久層。
+- 不新增或改名部門、不改 REPORTS_TO、不以 MERGE_EVIDENCE 改寫舊規則。知識、案例、證據、診斷及 Job 成功同交易提交。
+- 報告成功 result 為 reportVersion、analysisId；舊 Job 可仍只有 reportVersion。FEEDBACK 成功 result 為 globalMemoryVersion。
+- V4 migration 保留舊版資料；沒有 extension 的舊記憶回傳 schemaVersion=1 與空結構化集合，不捏造歷史證據。舊分析 Job 沿用原契約；舊待執行 FEEDBACK 在領取時組裝新契約。既有已完成回饋不自動重播或回填歷史案例。
+- 此次提供程式、migration、契約測試及 Swagger；完整 Gradle／PostgreSQL 整合測試受環境限制未執行，部署前應在可用環境執行。
+
+新版 classify_v2 的 explanation 同步保存至既有 Workflow.assignmentReason；人工改派或重設時清空目前理由，歷史 analysis-results 保留。V3__workflow_assignment_reason.sql 保持原樣，擴充記憶使用 V4__expanded_memory.sql。

@@ -69,6 +69,43 @@ class OpenAiClientTest {
     }
 
     @Test
+    void classifierSchemaRequiresBoundedAssignmentReason() {
+        response = completed("{\"assignments\":[]}");
+        client.generate("classify", Map.of(), Duration.ofSeconds(2));
+
+        Map<?, ?> format = (Map<?, ?>) ((Map<?, ?>) request.get().get("text")).get("format");
+        Map<?, ?> schema = (Map<?, ?>) format.get("schema");
+        Map<?, ?> assignments = (Map<?, ?>) ((Map<?, ?>) schema.get("properties")).get("assignments");
+        Map<?, ?> item = (Map<?, ?>) assignments.get("items");
+        Map<?, ?> assignmentReason =
+                (Map<?, ?>) ((Map<?, ?>) item.get("properties")).get("assignmentReason");
+        assertThat((List<?>) item.get("required")).contains("assignmentReason");
+        assertThat(assignmentReason)
+                .containsEntry("type", "string")
+                .containsEntry("minLength", 1)
+                .containsEntry("maxLength", 2000);
+    }
+
+    @Test
+    void versionTwoOperationsSendTheirStrictContractsAndPreserveContext() {
+        for (String operation : List.of("classify_v2", "feedback_v2")) {
+            var input = Map.<String, Object>of(
+                    "memoryContext", Map.of("version", 7, "evidence", List.of()),
+                    "workflows", List.of());
+            response = completed(operation.equals("classify_v2")
+                    ? "{\"assignments\":[]}"
+                    : "{\"departments\":[],\"knowledgeCandidates\":[],\"relationshipCandidates\":[],\"observations\":[]}");
+            client.generate(operation, input, Duration.ofSeconds(2));
+            Map<?, ?> format = (Map<?, ?>) ((Map<?, ?>) request.get().get("text")).get("format");
+            assertThat(format.get("strict")).isEqualTo(true);
+            assertThat(format.get("name")).isEqualTo("seax_" + operation);
+            assertThat(format.get("schema")).isEqualTo(PromptSchemas.schema(operation));
+            var messages = (List<?>) request.get().get("input");
+            assertThat(Json.read((String) ((Map<?, ?>) messages.get(1)).get("content"))).isEqualTo(input);
+        }
+    }
+
+    @Test
     void rateLimitIsOneCountableAttemptAndRetainsRetryAfter() {
         status = 429;
         retryAfter = "45";
