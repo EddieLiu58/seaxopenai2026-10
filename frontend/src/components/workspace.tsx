@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState, useRef, useCallback } from "react";
-import dynamic from "next/dynamic";
+import UseCaseReport from "./use-case-report";
+import ReportActions from "./report-actions";
 import {
   CookingPot,
   LayoutGrid,
@@ -27,7 +28,6 @@ import {
   Layers,
   LoaderCircle,
   Download,
-  History,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -39,34 +39,16 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
-import {
-  AlertDialog,
-  AlertDialogContent,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogCancel,
-  AlertDialogAction,
-} from "@/components/ui/alert-dialog";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
+  getUseCases,
   makeNodes,
   makeEdges,
   today,
   type Workspace,
   type Report,
-  type CompanyDoc,
+  type CompanyDepartment,
 } from "@/lib/workspace-data";
-const WorkflowEditor = dynamic(() => import("./workflow-editor"), {
-  ssr: false,
-  loading: () => (
-    <div className="loading-state">
-      <LoaderCircle className="spinner" />
-      正在載入協作流程…
-    </div>
-  ),
-});
 import {
   useWorkspaceStore,
   updateWorkspace,
@@ -111,8 +93,6 @@ export default function WorkspaceApp() {
   const [mobileNav, setMobileNav] = useState(false);
   const [help, setHelp] = useState(false);
   const [showPrd, setShowPrd] = useState(false);
-  const [confirm, setConfirm] = useState(false);
-  const [agreed, setAgreed] = useState(false);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const notify = useCallback((message: string) => {
     setToast(message);
@@ -142,34 +122,10 @@ export default function WorkspaceApp() {
     [setData],
   );
   const report = data.reports.find((r) => r.id === view);
-  const finalize = () => {
-    if (!report || !agreed) return;
-    const date = today();
-    const final = { ...report, status: "已準備開案" as const, date };
-    setData((prev) => ({
-      ...prev,
-      reports: prev.reports.map((r) => (r.id === report.id ? final : r)),
-      memories: [
-        {
-          id: crypto.randomUUID(),
-          reportId: report.id,
-          title: report.title,
-          date,
-          content: `適用情境：${report.description}\n\n${report.nodes.map((n) => `${n.data.label}｜主責：${n.data.department}｜協作：${n.data.collaborators}\n範圍：${n.data.scope}\n交付：${n.data.delivery}\n原始建議：${n.data.originalDepartment}\n調整紀錄：${n.data.history.join("；") || "沿用建議"}`).join("\n\n")}\n\n最終交接：\n${report.edges.map((e) => `${report.nodes.find((n) => n.id === e.source)?.data.label} → ${report.nodes.find((n) => n.id === e.target)?.data.label}`).join("\n")}`,
-        },
-        ...prev.memories,
-      ],
-    }));
-    setConfirm(false);
-    setAgreed(false);
-    notify("已準備開案，最終分工已加入公司記憶");
-  };
-  const pending =
-    report?.nodes.filter((n) => n.data.pending.trim()).length || 0;
   return (
     <div className="app-shell">
       <aside className={`sidebar ${mobileNav ? "is-open" : ""}`}>
-        <a href="#reports" className="brand">
+        <a href="#new" className="brand">
           <span className="brand-icon">
             <CookingPot size={24} />
           </span>
@@ -181,7 +137,7 @@ export default function WorkspaceApp() {
         <div className="workspace-switch">
           <span className="company-avatar">S</span>
           <div>
-            <strong>拾序科技</strong>
+            <strong>甩鍋科技</strong>
             <small>公司工作空間</small>
           </div>
           <span className="workspace-demo">示範</span>
@@ -207,11 +163,7 @@ export default function WorkspaceApp() {
           </a>
           <a
             href="#company"
-            className={
-              view === "company" || view === "company-memory"
-                ? "nav-item active"
-                : "nav-item"
-            }
+            className={view === "company" ? "nav-item active" : "nav-item"}
           >
             <Building2 size={18} />
             <span>公司資料</span>
@@ -223,8 +175,8 @@ export default function WorkspaceApp() {
           </div>
           <strong>好協作，從清楚的分工開始</strong>
           <p>每一次確認的共識，都是下一次分析的起點。</p>
-          <a href="#company-memory">
-            查看公司記憶 <ArrowUpRight size={14} />
+          <a href="#company">
+            查看部門資料 <ArrowUpRight size={14} />
           </a>
         </div>
         <div className="sidebar-bottom">
@@ -233,9 +185,9 @@ export default function WorkspaceApp() {
             使用說明 <ArrowUpRight size={14} />
           </button>
           <div className="profile">
-            <span className="user-avatar">林</span>
+            <span className="user-avatar">邱</span>
             <div>
-              <strong>林以安</strong>
+              <strong>邱文良</strong>
               <small>產品經理 · 示範角色</small>
             </div>
             <span className="online-dot" />
@@ -264,11 +216,7 @@ export default function WorkspaceApp() {
             <span>工作空間</span>
             <ChevronRight size={14} />
             <strong>
-              {view === "new"
-                ? "新增需求分析"
-                : view === "company" || view === "company-memory"
-                  ? "公司資料"
-                  : "分析報告"}
+              {view === "new" ? "新增需求分析" : view === "company" ? "公司資料" : "分析報告"}
             </strong>
             {report && (
               <>
@@ -283,7 +231,7 @@ export default function WorkspaceApp() {
               前端示範模式
             </span>
             <span className="topbar-divider" />
-            <span className="user-avatar small">林</span>
+            <span className="user-avatar small">邱</span>
           </div>
         </header>
         {storageError && (
@@ -304,7 +252,7 @@ export default function WorkspaceApp() {
         <main
           id="main"
           tabIndex={-1}
-          className={report ? "report-main" : "main-content"}
+          className="main-content"
         >
           {!ready ? (
             <div className="loading-state">
@@ -320,16 +268,13 @@ export default function WorkspaceApp() {
                 navigate(r.id);
                 notify("已建立示範分析報告，請檢視並調整分工");
               }}
-              docCount={data.docs.length}
+              departmentCount={data.departments.length}
             />
-          ) : view === "company" || view === "company-memory" ? (
+          ) : view === "company" ? (
             <Company
-              key={view}
-              initialTab={view === "company-memory" ? "memory" : "documents"}
               data={data}
               setData={setData}
               notify={notify}
-              navigate={navigate}
             />
           ) : report ? (
             <>
@@ -347,8 +292,8 @@ export default function WorkspaceApp() {
                     <Status status={report.status} />
                   </div>
                   <p>
-                    {report.cases.length} 個使用情境 <span>·</span>{" "}
-                    {new Set(report.nodes.map((n) => n.data.department)).size}{" "}
+                    {getUseCases(report).length} 個使用情境 <span>·</span>{" "}
+                    {new Set(getUseCases(report).flatMap((item) => item.departments)).size}{" "}
                     個協作部門 <span>·</span> 更新於 {report.date}
                   </p>
                 </div>
@@ -357,16 +302,7 @@ export default function WorkspaceApp() {
                     <FileText size={16} />
                     原始 PRD
                   </Button>
-                  <Button
-                    disabled={report.status === "已準備開案"}
-                    onClick={() => {
-                      setAgreed(false);
-                      setConfirm(true);
-                    }}
-                  >
-                    <CircleCheck size={16} />
-                    {report.status === "已準備開案" ? "已準備開案" : "準備開案"}
-                  </Button>
+                  <ReportActions key={report.id} report={report} notify={notify} />
                 </div>
               </div>
             </>
@@ -379,24 +315,7 @@ export default function WorkspaceApp() {
             </div>
           )}
           {ready && report && (
-            <>
-              <div
-                className={`report-notice ${report.status === "已準備開案" ? "complete" : ""}`}
-              >
-                <Sparkles size={16} />
-                <span>
-                  {report.status === "已準備開案"
-                    ? "本次分工已確認，結果已累積至公司記憶。此報告保留為共識快照。"
-                    : "以下為示範協作建議。請在需求會議中確認各部門分工，記錄調整原因後再準備開案。"}
-                </span>
-              </div>
-              <WorkflowEditor
-                key={report.id}
-                report={report}
-                onChange={updateReport}
-                notify={notify}
-              />
-            </>
+            <UseCaseReport report={report} onChange={updateReport} storageError={storageError} />
           )}
         </main>
         <footer className="app-footer">
@@ -426,12 +345,12 @@ export default function WorkspaceApp() {
             <li>
               <strong>一起釐清責任</strong>
               <p>
-                選取工作調整分工、交付內容與原因，也可新增或刪除工作及連線。
+                逐項閱讀 Use Case、查看建議協作部門，並填寫使用者回饋。
               </p>
             </li>
             <li>
-              <strong>確認共識，準備開案</strong>
-              <p>完成會議與待確認事項後，將最終分工存入此公司的本機記憶。</p>
+              <strong>留下使用者回饋</strong>
+              <p>回饋會自動儲存在此瀏覽器，重新開啟報告即可繼續。</p>
             </li>
           </ol>
         </DialogContent>
@@ -452,42 +371,6 @@ export default function WorkspaceApp() {
           </Button>
         </DialogContent>
       </Dialog>
-      <AlertDialog open={confirm} onOpenChange={setConfirm}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>確認共識，準備開案</AlertDialogTitle>
-            <AlertDialogDescription>
-              完成後將保留本次報告快照，並將最終分工與調整原因加入此公司的記憶。此示範版本完成後不再編輯。
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          {pending > 0 ? (
-            <div className="attention-box">
-              <strong>還有 {pending} 項待確認事項</strong>
-              <p>請先回到工作詳情，確認並清空已解決的待確認事項。</p>
-            </div>
-          ) : report?.nodes.length === 0 ? (
-            <p>請先新增至少一項工作。</p>
-          ) : (
-            <label className="checkbox-label">
-              <input
-                type="checkbox"
-                checked={agreed}
-                onChange={(e) => setAgreed(e.target.checked)}
-              />
-              我已與相關部門開會，並確認最終流程與分工。
-            </label>
-          )}
-          <AlertDialogFooter>
-            <AlertDialogCancel>返回檢視</AlertDialogCancel>
-            <AlertDialogAction
-              disabled={!agreed || pending > 0 || !report?.nodes.length}
-              onClick={finalize}
-            >
-              確認，準備開案
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
       {toast && (
         <div className="toast" role="status">
           <CircleCheck size={18} />
@@ -776,8 +659,7 @@ function ReportList({
         <div>
           <strong>讓分析更懂你的公司</strong>
           <p>
-            已加入 {data.docs.length} 份公司資料、{data.memories.length}{" "}
-            筆協作記憶。持續累積，讓責任邊界更清楚。
+            已載入 {data.departments.length} 個部門，作為每次分析的共同依據。
           </p>
         </div>
         <a href="#company">
@@ -789,10 +671,10 @@ function ReportList({
 }
 function NewReport({
   onCreate,
-  docCount,
+  departmentCount,
 }: {
   onCreate: (r: Report) => void;
-  docCount: number;
+  departmentCount: number;
 }) {
   const [title, setTitle] = useState("");
   const [prd, setPrd] = useState("");
@@ -847,6 +729,15 @@ function NewReport({
           status: "待確認",
           date: today(),
           cases,
+          useCases: cases.map((name, index) => ({
+            id: `case-${index + 1}`,
+            name,
+            departments: ["前端開發部", "後端開發部"],
+            description: index === 0
+              ? "使用者進入功能頁面、提供必要資料並提交操作，系統驗證輸入後呈現處理結果。此為示範情境，請依專案需求確認。"
+              : "當使用者沒有操作權限、輸入資料有誤或服務暫時無法回應時，系統說明原因並提供修正或重試方式。此為示範情境，請依專案需求確認。",
+            feedback: "",
+          })),
           nodes: makeNodes(cases),
           edges: makeEdges(),
         });
@@ -1015,7 +906,7 @@ function NewReport({
             <strong>目前為前端示範</strong>
             <p>
               會依固定範本建立流程，尚未串接 AI。上傳的文字可預覽與保存；
-              {docCount} 份公司資料與記憶尚未用於真實推論。
+              已載入 {departmentCount} 個部門作為分析依據。
             </p>
           </div>
         </aside>
@@ -1023,44 +914,100 @@ function NewReport({
     </>
   );
 }
+function parseDepartments(text: string): CompanyDepartment[] {
+  const parsed: unknown = JSON.parse(text);
+  if (!parsed || typeof parsed !== "object" || !Array.isArray((parsed as { departments?: unknown }).departments)) {
+    throw new Error("JSON 必須包含 departments 陣列。");
+  }
+  const departments = (parsed as { departments: unknown[] }).departments;
+  if (!departments.length) throw new Error("部門資料不能是空的。");
+  if (
+    !departments.every(
+      (department) =>
+        department &&
+        typeof department === "object" &&
+        typeof (department as CompanyDepartment).id === "string" &&
+        typeof (department as CompanyDepartment).name === "string" &&
+        typeof (department as CompanyDepartment).description === "string" &&
+        (department as CompanyDepartment).name.trim() &&
+        (department as CompanyDepartment).description.trim(),
+    )
+  ) {
+    throw new Error("每個部門都需要 id、name 與 description 欄位。");
+  }
+  return departments as CompanyDepartment[];
+}
+
+function DepartmentCard({
+  department,
+  selected,
+  compact = false,
+  onSelect,
+}: {
+  department: CompanyDepartment;
+  selected: boolean;
+  compact?: boolean;
+  onSelect: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      className={`department-card${selected ? " selected" : ""}${compact ? " compact" : ""}`}
+      aria-pressed={selected}
+      onClick={onSelect}
+    >
+      <span className="department-card-dot" aria-hidden="true" />
+      <strong>{department.name}</strong>
+      <span>{department.description}</span>
+    </button>
+  );
+}
+
 function Company({
   data,
   setData,
   notify,
-  navigate,
-  initialTab,
 }: {
-  initialTab: string;
   data: Workspace;
   setData: React.Dispatch<React.SetStateAction<Workspace>>;
   notify: (s: string) => void;
-  navigate: (v: string) => void;
 }) {
-  const [tab, setTab] = useState(initialTab);
-  const [category, setCategory] = useState("組織架構");
-  const [editing, setEditing] = useState<CompanyDoc | null>(null);
-  const [deleting, setDeleting] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState(data.departments[0]?.id ?? "");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const upload = async (files: FileList | null) => {
-    if (!files?.length) return;
+  const selected = data.departments.find((department) => department.id === selectedId) ?? data.departments[0];
+  const names = new Set([
+    "總經理室",
+    "產品管理部",
+    "使用者體驗設計部",
+    "研發管理部",
+    "客戶成功部",
+    "商務營運部",
+    "前端開發部",
+    "後端開發部",
+    "品質保證部",
+    "平台與資安部",
+  ]);
+  const byName = (name: string) => data.departments.find((department) => department.name === name);
+  const root = byName("總經理室");
+  const leadership = ["產品管理部", "使用者體驗設計部", "研發管理部", "客戶成功部", "商務營運部"]
+    .map(byName)
+    .filter((department): department is CompanyDepartment => Boolean(department));
+  const engineering = ["前端開發部", "後端開發部", "品質保證部", "平台與資安部"]
+    .map(byName)
+    .filter((department): department is CompanyDepartment => Boolean(department));
+  const others = data.departments.filter((department) => !names.has(department.name));
+  const upload = async (file?: File) => {
+    if (!file) return;
     setBusy(true);
     setError("");
     try {
-      const docs: CompanyDoc[] = [];
-      for (const f of Array.from(files)) {
-        docs.push({
-          id: crypto.randomUUID(),
-          name: f.name,
-          category,
-          date: today(),
-          content: await readTextFile(f),
-        });
-      }
-      setData((prev) => ({ ...prev, docs: [...docs, ...prev.docs] }));
-      notify(`已加入 ${docs.length} 份文件，請檢視內容`);
+      const imported = parseDepartments(await file.text());
+      setData((prev) => ({ ...prev, departments: imported }));
+      setSelectedId(imported[0].id);
+      notify(`已重新匯入 ${imported.length} 個部門`);
     } catch (e) {
-      setError((e as Error).message);
+      setError((e as Error).message || "無法讀取部門資料。");
     } finally {
       setBusy(false);
     }
@@ -1071,279 +1018,92 @@ function Company({
         <div>
           <div className="page-kicker">讓每一次分析，都有公司的脈絡。</div>
           <h1>公司資料</h1>
-          <p>管理組織職掌與開發流程，累積團隊確認過的協作經驗。</p>
+          <p>直接查看部門職掌與組織關係，匯入最新資料即可更新整張組織圖。</p>
         </div>
-        <span className="company-label">
-          <Building2 size={17} />
-          拾序科技 · 示範公司
-        </span>
-      </div>
-      <Tabs value={tab} onValueChange={setTab}>
-        <TabsList className="company-tabs">
-          <TabsTrigger value="documents">
-            <Building2 size={16} />
-            組織與職掌 <span>{data.docs.length}</span>
-          </TabsTrigger>
-          <TabsTrigger value="memory">
-            <BookOpen size={16} />
-            公司記憶 <span>{data.memories.length}</span>
-          </TabsTrigger>
-        </TabsList>
-        <TabsContent value="documents">
-          <div className="company-layout">
-            <section className="form-surface company-docs">
-              <div className="section-heading">
-                <h2>分析的共同依據</h2>
-                <span>{data.docs.length} 份文件</span>
-              </div>
-              <p className="muted-copy">
-                直接使用公司既有資料，不需要重新整理格式。
-              </p>
-              <div className="upload-controls">
-                <label>
-                  資料類型
-                  <select
-                    value={category}
-                    onChange={(e) => setCategory(e.target.value)}
-                  >
-                    <option>組織架構</option>
-                    <option>部門職掌</option>
-                    <option>既有流程</option>
-                  </select>
-                </label>
-              </div>
-              <label
-                className="upload-zone compact"
-                onDragOver={(e) => e.preventDefault()}
-                onDrop={(e) => {
-                  e.preventDefault();
-                  if (!busy) void upload(e.dataTransfer.files);
-                }}
-              >
-                <Upload size={25} />
-                <strong>
-                  {busy ? "正在讀取文件…" : "拖曳公司資料，或點擊上傳"}
-                </strong>
-                <span>支援多份 TXT、Markdown 文件，每份最大 1 MB</span>
-                <input
-                  aria-label="上傳公司資料"
-                  type="file"
-                  accept=".txt,.md"
-                  multiple
-                  disabled={busy}
-                  onChange={(e) => {
-                    void upload(e.target.files);
-                    e.target.value = "";
-                  }}
-                />
-              </label>
-              {error && (
-                <p role="alert" className="form-error">
-                  {error}
-                </p>
-              )}
-              <div className="document-list">
-                {data.docs.map((d) => (
-                  <div className="document-row" key={d.id}>
-                    <span className="file-icon">
-                      <FileText size={21} />
-                    </span>
-                    <button
-                      className="document-open"
-                      onClick={() => setEditing({ ...d })}
-                    >
-                      <strong>{d.name}</strong>
-                      <small>
-                        {d.category} · {d.date}
-                      </small>
-                    </button>
-                    <span className="review-label">待人工檢視</span>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      aria-label={`刪除 ${d.name}`}
-                      onClick={() => setDeleting(d.id)}
-                    >
-                      <X size={16} />
-                    </Button>
-                  </div>
-                ))}
-                {!data.docs.length && (
-                  <div className="empty-state">
-                    <FileText />
-                    <h3>先加入第一份公司資料</h3>
-                    <p>從組織架構或部門職掌開始。</p>
-                  </div>
-                )}
-              </div>
-            </section>
-            <aside className="create-aside">
-              <div className="aside-intro">
-                <Building2 size={25} />
-                <h2>
-                  清楚的分工，
-                  <br />
-                  來自共同的理解。
-                </h2>
-              </div>
-              <ul className="feature-list">
-                <li>
-                  <Users size={18} />
-                  <div>
-                    <strong>組織架構</strong>
-                    <p>公司有哪些團隊、彼此如何協作。</p>
-                  </div>
-                </li>
-                <li>
-                  <ShieldCheck size={18} />
-                  <div>
-                    <strong>部門職掌</strong>
-                    <p>各部門負責什麼、責任到哪裡。</p>
-                  </div>
-                </li>
-                <li>
-                  <GitBranch size={18} />
-                  <div>
-                    <strong>既有流程</strong>
-                    <p>沿用有效的開發、交接與驗收方式。</p>
-                  </div>
-                </li>
-              </ul>
-              <div className="demo-note">
-                <strong>資料仍需人工檢視</strong>
-                <p>
-                  目前保存文字原文，尚未自動整理或偵測職掌衝突。請點選文件檢視與修正內容。
-                </p>
-              </div>
-            </aside>
-          </div>
-        </TabsContent>
-        <TabsContent value="memory">
-          <div className="memory-banner">
-            <BookOpen size={26} />
-            <div>
-              <h2>把這次的共識，留給下一次協作。</h2>
-              <p>只有「準備開案」後的最終分工，才會加入這間公司的記憶。</p>
-            </div>
-            <span>{data.memories.length} 筆經驗</span>
-          </div>
-          <div className="memory-list">
-            {data.memories.map((m) => (
-              <article className="memory-item" key={m.id}>
-                <div className="memory-title">
-                  <span className="memory-check">
-                    <CircleCheck size={19} />
-                  </span>
-                  <div>
-                    <h3>{m.title}</h3>
-                    <span>已確認的協作共識 · {m.date}</span>
-                  </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => navigate(m.reportId)}
-                  >
-                    來源報告
-                    <ArrowUpRight size={14} />
-                  </Button>
-                </div>
-                <pre>{m.content}</pre>
-              </article>
-            ))}
-            {!data.memories.length && (
-              <div className="empty-state">
-                <History />
-                <h3>每一份共識，都值得留下</h3>
-                <p>完成首份報告的「準備開案」，即可建立公司記憶。</p>
-              </div>
-            )}
-          </div>
-        </TabsContent>
-      </Tabs>
-      <Dialog
-        open={!!editing}
-        onOpenChange={(open) => {
-          if (!open) setEditing(null);
-        }}
-      >
-        <DialogContent className="wide-dialog">
-          <DialogHeader>
-            <DialogTitle>檢視與修正公司資料</DialogTitle>
-            <DialogDescription>
-              確認原始內容，儲存你對職掌與流程的修正。
-            </DialogDescription>
-          </DialogHeader>
-          {editing && (
-            <>
-              <label>
-                文件名稱
-                <Input
-                  value={editing.name}
-                  onChange={(e) =>
-                    setEditing({ ...editing, name: e.target.value })
-                  }
-                />
-              </label>
-              <label>
-                文件內容
-                <Textarea
-                  rows={12}
-                  value={editing.content}
-                  onChange={(e) =>
-                    setEditing({ ...editing, content: e.target.value })
-                  }
-                />
-              </label>
-              <Button
-                disabled={!editing.name.trim() || !editing.content.trim()}
-                onClick={() => {
-                  setData((prev) => ({
-                    ...prev,
-                    docs: prev.docs.map((d) =>
-                      d.id === editing.id ? { ...editing, date: today() } : d,
-                    ),
-                  }));
-                  setEditing(null);
-                  notify("已儲存公司資料");
-                }}
-              >
-                儲存文件
-              </Button>
-            </>
-          )}
-        </DialogContent>
-      </Dialog>
-      <AlertDialog
-        open={!!deleting}
-        onOpenChange={(open) => {
-          if (!open) setDeleting(null);
-        }}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>刪除這份公司資料？</AlertDialogTitle>
-            <AlertDialogDescription>
-              「{data.docs.find((d) => d.id === deleting)?.name}
-              」將從此瀏覽器移除。已確認的報告與記憶仍會保留。
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>取消</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => {
-                setData((prev) => ({
-                  ...prev,
-                  docs: prev.docs.filter((d) => d.id !== deleting),
-                }));
-                setDeleting(null);
-                notify("已刪除公司資料");
+        <div className="company-heading-actions">
+          <span className="company-label">
+            <Building2 size={17} />
+            甩鍋科技 · 示範公司
+          </span>
+          <label className="department-import-button">
+            <Upload size={15} />
+            {busy ? "正在匯入…" : "重新匯入部門資料"}
+            <input
+              aria-label="重新匯入部門資料"
+              type="file"
+              accept=".json,application/json"
+              disabled={busy}
+              onChange={(event) => {
+                void upload(event.target.files?.[0]);
+                event.target.value = "";
               }}
-            >
-              確認刪除
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+            />
+          </label>
+        </div>
+      </div>
+      {error && <p role="alert" className="form-error">{error}</p>}
+      <div className="department-summary">
+        <div>
+          <span className="page-kicker">組織總覽</span>
+          <h2>{data.departments.length} 個部門，清楚看見責任邊界</h2>
+        </div>
+        <span className="department-source">來源：global-memory-software-company.json</span>
+      </div>
+      <div className="department-visual-layout">
+        <section className="department-visual form-surface" aria-label="部門資訊視覺化">
+          <div className="section-heading">
+            <div>
+              <h2>組織關係</h2>
+              <p className="muted-copy">點選部門查看完整職掌。連線代表上下隸屬關係。</p>
+            </div>
+            <Users size={20} aria-hidden="true" />
+          </div>
+          {root && (
+            <div className="department-root">
+              <DepartmentCard department={root} selected={selected?.id === root.id} onSelect={() => setSelectedId(root.id)} />
+            </div>
+          )}
+          <div className="department-connector" aria-hidden="true" />
+          <div className="department-level">
+            {leadership.map((department) => (
+              <DepartmentCard key={department.id} department={department} selected={selected?.id === department.id} onSelect={() => setSelectedId(department.id)} />
+            ))}
+          </div>
+          {engineering.length > 0 && (
+            <div className="department-team-group">
+              <div className="department-team-title"><GitBranch size={15} /> 研發管理部下屬團隊</div>
+              <div className="department-level department-children">
+                {engineering.map((department) => (
+                  <DepartmentCard key={department.id} department={department} compact selected={selected?.id === department.id} onSelect={() => setSelectedId(department.id)} />
+                ))}
+              </div>
+            </div>
+          )}
+          {others.length > 0 && (
+            <div className="department-level department-other">
+              {others.map((department) => (
+                <DepartmentCard key={department.id} department={department} selected={selected?.id === department.id} onSelect={() => setSelectedId(department.id)} />
+              ))}
+            </div>
+          )}
+        </section>
+        <aside className="department-detail" aria-live="polite">
+          {selected ? (
+            <>
+              <span className="detail-kicker"><Building2 size={14} /> 部門職掌</span>
+              <h2>{selected.name}</h2>
+              <p>{selected.description}</p>
+              <div className="detail-meta"><span className="live-dot" /> 已載入公司資料</div>
+            </>
+          ) : (
+            <p className="muted-copy">尚未載入部門資料。</p>
+          )}
+        </aside>
+      </div>
+      <div className="department-import-note">
+        <ShieldCheck size={17} />
+        <span>可重新匯入同格式 JSON，系統會以新檔案取代目前的部門清單。</span>
+      </div>
     </>
   );
 }

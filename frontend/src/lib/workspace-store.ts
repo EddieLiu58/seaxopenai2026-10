@@ -19,8 +19,7 @@ function validWorkspace(value: unknown): value is Workspace {
   return (
     w.version === 1 &&
     Array.isArray(w.reports) &&
-    Array.isArray(w.docs) &&
-    Array.isArray(w.memories) &&
+    Array.isArray(w.departments) &&
     w.reports.every(
       (r) =>
         typeof r.id === "string" &&
@@ -28,6 +27,12 @@ function validWorkspace(value: unknown): value is Workspace {
         typeof r.description === "string" &&
         typeof r.prd === "string" &&
         typeof r.date === "string" &&
+        (r.useCases === undefined || (Array.isArray(r.useCases) &&
+          new Set(r.useCases.map((item) => item?.id)).size === r.useCases.length &&
+          r.useCases.every((item) => item && typeof item.id === "string" &&
+            typeof item.name === "string" && typeof item.description === "string" &&
+            typeof item.feedback === "string" && Array.isArray(item.departments) &&
+            item.departments.every((department) => typeof department === "string")))) &&
         ["待確認", "協作中", "已準備開案"].includes(r.status) &&
         Array.isArray(r.cases) &&
         r.cases.every((c) => typeof c === "string") &&
@@ -62,15 +67,12 @@ function validWorkspace(value: unknown): value is Workspace {
             r.nodes.some((n) => n.id === e.target),
         ),
     ) &&
-    w.docs.every((d) =>
-      ["id", "name", "category", "date", "content"].every(
-        (k) => typeof d[k as keyof typeof d] === "string",
-      ),
-    ) &&
-    w.memories.every((m) =>
-      ["id", "reportId", "title", "date", "content"].every(
-        (k) => typeof m[k as keyof typeof m] === "string",
-      ),
+    w.departments.every(
+      (d) =>
+        d &&
+        typeof d.id === "string" &&
+        typeof d.name === "string" &&
+        typeof d.description === "string",
     )
   );
 }
@@ -80,8 +82,13 @@ function subscribe(listener: () => void) {
     try {
       const raw = localStorage.getItem(storageKey);
       const parsed = raw ? JSON.parse(raw) : initialWorkspace;
-      if (!validWorkspace(parsed)) throw new Error("Invalid local workspace");
-      snapshot = { data: parsed, ready: true, error: "" };
+      const migrated =
+        parsed && typeof parsed === "object" && !Array.isArray(parsed) &&
+        !Array.isArray((parsed as { departments?: unknown }).departments)
+          ? { ...parsed, departments: initialWorkspace.departments }
+          : parsed;
+      if (!validWorkspace(migrated)) throw new Error("Invalid local workspace");
+      snapshot = { data: migrated, ready: true, error: "" };
     } catch {
       snapshot = {
         data: initialWorkspace,
@@ -121,11 +128,11 @@ function subscribeHash(listener: () => void) {
 }
 function getHash() {
   try {
-    return decodeURIComponent(location.hash.slice(1)) || "reports";
+    return decodeURIComponent(location.hash.slice(1)) || "new";
   } catch {
-    return "reports";
+    return "new";
   }
 }
 export function useWorkspaceView() {
-  return useSyncExternalStore(subscribeHash, getHash, () => "reports");
+  return useSyncExternalStore(subscribeHash, getHash, () => "new");
 }

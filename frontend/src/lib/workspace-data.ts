@@ -1,4 +1,5 @@
 import type { Node, Edge } from "@xyflow/react";
+import companyExample from "../../../backend/examples/global-memory-software-company.json";
 export type WorkData = {
   label: string;
   department: string;
@@ -14,6 +15,13 @@ export type WorkData = {
   [key: string]: unknown;
 };
 export type WorkNode = Node<WorkData>;
+export type UseCase = {
+  id: string;
+  name: string;
+  departments: string[];
+  description: string;
+  feedback: string;
+};
 export type Report = {
   id: string;
   title: string;
@@ -24,27 +32,46 @@ export type Report = {
   cases: string[];
   nodes: WorkNode[];
   edges: Edge[];
+  useCases?: UseCase[];
 };
-export type CompanyDoc = {
+// Older browser reports keep their original workflow data during migration.
+export function getUseCases(report: Report): UseCase[] {
+  if (report.useCases) return report.useCases;
+  const aliases: Record<string, string> = {
+    產品部: "產品管理部", 設計部: "使用者體驗設計部",
+    前端工程部: "前端開發部", 後端工程部: "後端開發部",
+  };
+  return report.cases.map((name, index) => {
+    const nodes = report.nodes.filter((node) => node.data.useCase === name);
+    return {
+      id: `case-${index + 1}`,
+      name,
+      departments: [...new Set(nodes.flatMap(({ data }) =>
+        [data.department, ...data.collaborators.split(/[、,，；;]/)]
+          .map((value) => value.trim()).filter(Boolean)
+          .map((value) => aliases[value] ?? value),
+      ))],
+      description: nodes.map(({ data }) => data.scope).join("\n") || report.description,
+      feedback: "",
+    };
+  });
+}
+export type CompanyDepartment = {
   id: string;
   name: string;
-  category: string;
-  date: string;
-  content: string;
-};
-export type Memory = {
-  id: string;
-  reportId: string;
-  title: string;
-  date: string;
-  content: string;
+  description: string;
 };
 export type Workspace = {
   version: 1;
   reports: Report[];
-  docs: CompanyDoc[];
-  memories: Memory[];
+  departments: CompanyDepartment[];
 };
+export const defaultCompanyDepartments: CompanyDepartment[] =
+  companyExample.departments.map((department) => ({
+    id: department.id,
+    name: department.name,
+    description: department.description,
+  }));
 export const departments = [
   "產品部",
   "設計部",
@@ -192,48 +219,6 @@ export const initialWorkspace: Workspace = {
     ),
     edges: makeEdges(),
   })),
-  docs: [
-    {
-      id: "d1",
-      name: "公司組織架構.md",
-      category: "組織架構",
-      date: "2026-09-10",
-      content:
-        "產品部：需求定義與優先順序\n設計部：使用體驗與視覺設計\n前端工程部：使用者介面\n後端工程部：API 與資料服務\n品質保證部：測試與驗收\n數據部：數據定義與分析",
-    },
-    {
-      id: "d2",
-      name: "部門職掌與責任範圍.txt",
-      category: "部門職掌",
-      date: "2026-09-10",
-      content:
-        "API 由後端工程部主責；前端工程部負責介接；資料定義由數據部協作確認。",
-    },
-    {
-      id: "d3",
-      name: "產品開發協作流程.md",
-      category: "既有流程",
-      date: "2026-09-08",
-      content: "需求釐清 → 設計與技術規劃 → 開發 → 整合測試 → 驗收。",
-    },
-  ],
-  memories: [
-    {
-      id: "m1",
-      reportId: "report-5",
-      title: "企業方案訂閱管理",
-      date: "2026-09-08",
-      content:
-        "方案異動由後端工程部主責，前端工程部協作呈現。適用情境：企業方案升降級。示範共識紀錄。",
-    },
-    {
-      id: "m2",
-      reportId: "report-6",
-      title: "新用戶引導流程",
-      date: "2026-09-05",
-      content:
-        "引導體驗由設計部規劃，產品部確認完成條件。適用情境：新用戶首次使用。示範共識紀錄。",
-    },
-  ],
+  departments: defaultCompanyDepartments,
 };
 export const today = () => new Date().toLocaleDateString("sv-SE");
