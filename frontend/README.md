@@ -13,7 +13,7 @@ npm run dev
 
 開啟 http://localhost:3000 。未設定 `NEXT_PUBLIC_API_BASE_URL` 時，使用同來源 `/api/v1`。
 
-目前 API base URL 為 `https://retro-agreement-seeing-reuters.trycloudflare.com/api/v1`，已填入 `.env.example` 與本機 `.env.local`。本儲存庫的 `backend/` 仍只有規格與範例，服務由此網址提供。後端跨來源時需允許前端 origin、GET / POST / PATCH / DELETE / OPTIONS，以及 Content-Type / Idempotency-Key headers。公開設定只放 API URL，不放 AI 金鑰。
+目前 API base URL 為 `https://solve-batteries-discs-lens.trycloudflare.com/api/v1`，已填入 `.env.example` 與本機 `.env.local`。本儲存庫的 `backend/` 仍只有規格與範例，服務由此網址提供。後端跨來源時需允許前端 origin、GET / POST / PATCH / DELETE / OPTIONS，以及 Content-Type / Idempotency-Key headers。公開設定只放 API URL，不放 AI 金鑰。
 
 保留 Next.js `output: "export"` 與 Cloudflare Pages 部署。API URL 於建置時注入，變更後需重新建置；若使用同來源 `/api/v1`，需另配置 API 代理，靜態輸出本身不提供後端。
 
