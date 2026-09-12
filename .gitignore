@@ -1,2 +1,4 @@
 /.idea/
 /.superpowers/
+/frontend/.env.example
+/frontend/.env.local
