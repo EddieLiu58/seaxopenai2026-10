@@ -87,6 +87,12 @@ class OpenAiClientTest {
     }
 
     @Test
+    void versionedPromptsRequireTraditionalChineseForGeneratedText() {
+        assertThat(PromptSchemas.prompt("classify_v2")).contains("繁體中文（zh-Hant）");
+        assertThat(PromptSchemas.prompt("feedback_v2")).contains("繁體中文（zh-Hant）");
+    }
+
+    @Test
     void versionTwoOperationsSendTheirStrictContractsAndPreserveContext() {
         for (String operation : List.of("classify_v2", "feedback_v2")) {
             var input = Map.<String, Object>of(

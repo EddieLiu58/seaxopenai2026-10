@@ -32,6 +32,8 @@ final class PromptSchemas {
                     Cite only knowledgeItemIds and evidenceIds actually supplied in memoryContext;
                     explanation is a concise public summary supported by the citations, at most 2000
                     characters. Do not edit workflows or add departments. Output only assignments JSON.
+                    All newly generated human-readable text, including explanation and missingInformation,
+                    must be in 繁體中文（zh-Hant）. Preserve identifiers, enum codes and supplied values exactly.
                     """;
             case "feedback_v2" -> """
                     Analyze contractVersion 2 using the frozen CLOSED project, complete finalReport,
@@ -75,6 +77,8 @@ final class PromptSchemas {
                     descriptions and allow empty candidates, without forcing improvements.
                     Maximum 400 candidates TOTAL, 200 observations, 50 evidenceRefs per item,
                     50 conditions/exchangedItems per item. Required text must not be blank.
+                    All newly generated human-readable text must be in 繁體中文（zh-Hant）. Preserve identifiers,
+                    enum codes, supplied department fields, sourcePath and exact source excerpts unchanged.
                     """;
             default -> throw new IllegalArgumentException("Unknown versioned AI operation");
         };
