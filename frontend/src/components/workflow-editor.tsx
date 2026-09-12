@@ -219,7 +219,7 @@ export default function WorkflowEditor({
                   reason: "",
                   useCase: caseFilter === "all" ? report.cases[0] : caseFilter,
                   collaborators: "",
-                  history: ["手動新增工作"],
+                  history: ["手動新增流程"],
                 },
               };
               onChange({ ...report, nodes: [...report.nodes, node] });
@@ -227,7 +227,7 @@ export default function WorkflowEditor({
             }}
           >
             <Plus size={14} />
-            新增工作
+            新增流程
           </Button>
         </div>
         <div className="flow-wrap">

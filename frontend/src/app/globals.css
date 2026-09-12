@@ -2666,6 +2666,8 @@ label textarea {
   }
   .heading-actions {
     margin-left: 0;
+    flex-wrap: wrap;
+    max-width: 100%;
   }
   .report-notice {
     font-size: 10px;
@@ -3456,3 +3458,31 @@ label textarea {
     visibility: visible;
   }
 }
+
+/* API-backed workspace states and forms. */
+.api-notice { display:flex; align-items:center; justify-content:space-between; gap:16px; padding:16px 20px; margin:16px 0; border:1px solid var(--border); border-radius:12px; background:var(--muted); overflow-wrap:anywhere; }
+.api-notice p { margin:6px 0; }
+.api-notice a { text-decoration:underline; }
+.api-action-bar { margin:20px 0; flex-wrap:wrap; }
+.api-form { display:grid; gap:18px; }
+.api-form label { display:grid; gap:8px; }
+.api-form fieldset { min-width:0; padding:12px; border:1px solid var(--border); border-radius:8px; }
+.api-select { width:100%; min-height:44px; padding:10px 12px; border:1px solid var(--border); border-radius:8px; background:var(--background); }
+.api-departments { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:20px; margin-top:24px; }
+.api-project-columns { grid-template-columns:minmax(0,1fr) 110px 190px 24px; }
+.api-history { padding:12px 0; border-bottom:1px solid var(--border); }
+.api-history summary { cursor:pointer; padding:10px 0; }
+.api-history pre { white-space:pre-wrap; overflow-wrap:anywhere; max-height:400px; overflow:auto; font-size:12px; }
+.use-case-card { overflow-wrap:anywhere; }
+@media(max-width:700px) { .api-departments { grid-template-columns:1fr; } .api-project-columns { grid-template-columns:minmax(0,1fr) auto; } .api-project-columns > .date-text, .api-project-columns > svg, .api-project-columns > span:nth-child(3) { display:none; } .api-notice { align-items:flex-start; flex-direction:column; } .api-action-bar { display:flex; } }
+
+.department-tree { display: grid; gap: 18px; }
+.department-root > .department-card { width: min(100%, 240px); }
+.department-relationship-notes { margin-top: 20px; padding: 16px 20px; border: 1px solid var(--border); border-radius: 10px; background: var(--card); }
+.department-relationship-notes summary { cursor: pointer; font-size: 13px; font-weight: 600; }
+.department-relationship-notes p { margin-top: 16px; }
+.department-team-group .department-team-group { margin-top: 16px; }
+
+.department-options { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.department-options > label:has(input[type="checkbox"]) { display: flex; align-items: center; gap: 10px; min-height: 32px; overflow-wrap: anywhere; }
+.department-options input[type="checkbox"] { width: 16px; height: 16px; flex-shrink: 0; accent-color: var(--primary); }

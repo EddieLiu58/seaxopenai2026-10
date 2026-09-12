@@ -16,6 +16,11 @@ export type WorkData = {
 };
 export type WorkNode = Node<WorkData>;
 export type UseCase = {
+  assignmentStatus?: "UNASSIGNED" | "ASSIGNED" | "UNKNOWN";
+  departmentId?: string | null;
+  departmentIds?: string[];
+  dependsOnWorkflowIds?: string[];
+  reason?: string;
   id: string;
   name: string;
   departments: string[];
@@ -24,6 +29,8 @@ export type UseCase = {
 };
 export type Report = {
   id: string;
+  // Existing demo reports use id until they have a separate API project ID.
+  projectId?: string;
   title: string;
   description: string;
   status: "待確認" | "協作中" | "已準備開案";
@@ -160,50 +167,13 @@ export function makeEdges(): Edge[] {
     type: "smoothstep",
   }));
 }
-const seedTitles = [
-  [
-    "會員中心改版與權限整合",
-    "統一會員資料與登入流程，建立清楚的跨部門協作邊界。",
-    "協作中",
-    "2026-09-12",
-    ["會員資料管理", "角色與權限設定", "帳號安全驗證"],
-  ],
-  [
-    "訂單退款流程優化",
-    "串聯客服、金流與訂單系統，縮短退款處理時間。",
-    "待確認",
-    "2026-09-11",
-    ["申請退款", "退款審核"],
-  ],
-  [
-    "數據儀表板 2.0",
-    "整合營運指標，讓各團隊使用一致的數據定義。",
-    "待確認",
-    "2026-09-10",
-    ["指標查詢", "報表匯出"],
-  ],
-  [
-    "站內通知中心",
-    "集中管理系統通知與個人訂閱偏好。",
-    "協作中",
-    "2026-09-09",
-    ["通知收件匣", "訂閱設定"],
-  ],
-  [
-    "企業方案訂閱管理",
-    "規劃企業方案升降級與帳務管理流程。",
-    "已準備開案",
-    "2026-09-08",
-    ["方案管理", "帳務查詢"],
-  ],
-  [
-    "新用戶引導流程",
-    "優化首次使用體驗，協助用戶完成關鍵設定。",
-    "已準備開案",
-    "2026-09-05",
-    ["首次設定", "教學引導"],
-  ],
-] as const;
+const seedTitles = [[
+  "會員中心改版與權限整合",
+  "統一會員資料與登入流程，建立清楚的跨部門協作邊界。",
+  "協作中",
+  "2026-09-12",
+  ["會員資料管理", "角色與權限設定", "帳號安全驗證"],
+]] as const;
 export const initialWorkspace: Workspace = {
   version: 1,
   reports: seedTitles.map(([title, description, status, date, cases], i) => ({
@@ -214,9 +184,7 @@ export const initialWorkspace: Workspace = {
     date,
     cases: [...cases],
     prd: `# ${title}\n\n${description}\n\n使用情境：\n${cases.map((c) => `- ${c}`).join("\n")}\n\n本報告為示範內容，供體驗分工與流程編輯。`,
-    nodes: makeNodes([...cases]).map((n) =>
-      status === "已準備開案" ? { ...n, data: { ...n.data, pending: "" } } : n,
-    ),
+    nodes: makeNodes([...cases]),
     edges: makeEdges(),
   })),
   departments: defaultCompanyDepartments,
